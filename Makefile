@@ -9,7 +9,8 @@ help:
 	@echo "  make serve    Start dev server → http://localhost:$(PORT)"
 	@echo "  make kill     Kill this project's HTTP server"
 	@echo "  make test     Run the engine regression suite (Node, no dependencies)"
-	@echo "  make pars     Recompute mission pars from the catalog"
+	@echo "  make pars     Recompute mission pars from the catalog (slow)"
+	@echo "  make pars-check  Fail if a recorded par is no longer the cheapest"
 	@echo ""
 
 # ── Dev server ────────────────────────────────────────────────────────────────
@@ -39,3 +40,7 @@ test:
 .PHONY: pars
 pars:
 	@$(NODE_RUN) tests/pars.mjs
+
+.PHONY: pars-check
+pars-check:
+	@$(NODE_RUN) tests/pars.mjs --check

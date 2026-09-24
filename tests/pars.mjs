@@ -8,8 +8,9 @@
 //   node tests/pars.mjs --check    exit 1 if missions.js disagrees
 //   node tests/pars.mjs bookclub   one mission only
 //
-// Run it whenever prices, efficiencies or missions change. It takes about a
-// minute because it runs a few thousand full simulations.
+// A par must earn a star on every seed in SEEDS. Run it whenever prices,
+// efficiencies or missions change (make pars); it takes a few minutes, so
+// make test only re-checks each mission's recorded parSetup.
 
 import { runScenario } from '../js/engine/sim.js';
 import { MISSIONS, scoreMission } from '../js/data/missions.js';
@@ -59,23 +60,36 @@ export function candidates(m) {
   return out.sort((a, b) => a.price - b.price);
 }
 
-export function scenarioFor(m, setup) {
+/** A par has to hold on every one of these seeds, not on one lucky run. */
+export const SEEDS = [7, 11, 23, 42];
+
+export function scenarioFor(m, setup, seed = 7) {
   return {
     box: { id: setup.box, count: setup.count, mode: setup.mode || 'replica' },
     model: { id: setup.model, quant: setup.quant, kv: setup.kv || 'f16' },
     runtime: { id: setup.runtime, overrides: setup.overrides || {} },
-    groups: m.groups, seed: 7,
+    groups: m.groups, seed,
   };
 }
 
-/** Cheapest setup that earns at least one star, or null. */
+/** Lowest share on target across the seeds, or -1 if any seed misses a star. */
+export function worstPass(m, setup, stars = 1) {
+  let worst = 1;
+  for (const seed of SEEDS) {
+    const r = runScenario(scenarioFor(m, setup, seed), { duration: m.duration });
+    if (scoreMission({ ...m, par: stars === 3 ? m.par : Infinity }, r).stars < stars) return -1;
+    worst = Math.min(worst, r.passRate ?? 0);
+  }
+  return worst;
+}
+
+/** Cheapest setup that earns at least one star on every seed, or null. */
 export function solve(m) {
   let best = null;
   for (const c of candidates(m)) {
     if (best && c.price > best.price) break;   // sorted: nothing cheaper remains
-    const r = runScenario(scenarioFor(m, c.setup), { duration: m.duration });
-    const s = scoreMission({ ...m, par: Infinity }, r);
-    if (s.stars >= 1 && (!best || r.passRate > best.pass)) best = { ...c, pass: r.passRate };
+    const pass = worstPass(m, c.setup);
+    if (pass >= 0 && (!best || pass > best.pass)) best = { ...c, pass };
   }
   return best;
 }
@@ -87,10 +101,11 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   for (const m of MISSIONS.filter((x) => !only || x.id === only)) {
     const best = solve(m);
     const par = best ? roundUp(best.price) : null;
-    const ok = par === m.par;
+    const ok = par === m.par && m.parSetup && JSON.stringify(m.parSetup) === JSON.stringify(best?.setup);
     if (!ok) bad++;
     const s = best?.setup;
     const layout = s?.overrides?.slots ? ` ${s.overrides.slots}x${s.overrides.ctxPerSlot / 1024}K` : '';
+    if (!ok && best) console.log(`    parSetup: ${JSON.stringify(best.setup)},`);
     console.log(`${ok ? 'ok ' : 'OFF'} ${m.id.padEnd(20)} par ${String(par).padStart(6)} (data ${m.par})  ${s ? `${s.count}x ${s.box}${s.mode === 'split' ? ' split' : ''} ${s.model} ${s.quant} kv ${s.kv} ${s.runtime}${layout}, ${Math.round(best.pass * 100)}% on target` : 'unsolvable'}`);
   }
   if (check && bad) { console.error(`${bad} mission par(s) disagree with js/data/missions.js`); process.exit(1); }

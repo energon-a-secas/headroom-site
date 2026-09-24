@@ -19,6 +19,15 @@
 //               ttft: first visible text (s), tps: stream speed floor,
 //               e2e: whole answer visible (s)
 //   patience    seconds a queued request waits before the person gives up
+//   lead        tokens that must be generated before anything can be shown or
+//               spoken: a speech engine buffers about 60 characters (16 tokens)
+//               before it talks; a tool call comes before a device reply
+//   reason      hidden thinking tokens the task asks for (a reasoning model
+//               always writes at least its own minimum; see models.js)
+//   burst       true: sends are synchronised to a clock, every burstEvery
+//               seconds, spread over burstSpread seconds
+//   prefixId    (group level) names the system prompt; groups with the same
+//               persona and prefix share one cached prompt unless they differ
 export const PERSONAS = [
   {
     id: 'chat', name: 'Chat assistant', glyph: 'C',
@@ -47,13 +56,14 @@ export const PERSONAS = [
   {
     id: 'voice', name: 'Voice assistant', glyph: 'V',
     prompt: 25, context: 0, prefix: 900, output: 70, history: true, turns: 4,
-    think: 90, readTps: 3, slo: { ttft: 1.2, tps: 10, e2e: 0 }, patience: 10,
-    blurb: 'Speech in, speech out. Anything past 1.2 seconds to the first word feels broken.',
+    think: 90, readTps: 3, slo: { ttft: 1.2, tps: 10, e2e: 0 }, patience: 10, lead: 16,
+    blurb: 'Speech in, speech out. The speech engine needs about 16 tokens before it can start, and anything past 1.2 seconds to the first word feels broken.',
   },
   {
     id: 'student', name: 'Classroom student', glyph: 'S',
     prompt: 160, context: 0, prefix: 600, output: 420, history: true, turns: 6,
-    think: 110, readTps: 5, slo: { ttft: 0, tps: 0, e2e: 60 }, patience: 120, burst: true,
+    think: 110, readTps: 5, slo: { ttft: 0, tps: 0, e2e: 60 }, patience: 120,
+    burst: true, burstEvery: 300, burstSpread: 20,
     blurb: 'Everyone gets the same exercise and presses submit within seconds of each other.',
   },
   {
@@ -77,13 +87,16 @@ export const PERSONAS = [
 //   mode        'stream' shows tokens as they arrive; 'final' waits for the
 //               whole answer (an e-ink page that flashes once)
 //   pipelineMs  fixed work outside the model: speech-to-text before, TTS after
+//   thinking    true: the app streams a reasoning model's thinking block as it
+//               is written, so that counts as the first visible text; a speaker
+//               cannot speak its reasoning and waits for the answer itself
 export const CLIENTS = [
-  { id: 'browser', name: 'Laptop browser', updateMs: 16, renderMs: 2, finalMs: 2, mode: 'stream', pipelineMs: 0, protocol: 'sse' },
-  { id: 'phone', name: 'Phone app', updateMs: 33, renderMs: 4, finalMs: 4, mode: 'stream', pipelineMs: 0, protocol: 'sse' },
-  { id: 'kindle', name: 'Kindle (e-ink)', updateMs: 1000, renderMs: 450, finalMs: 450, mode: 'final', pipelineMs: 0, protocol: 'http' },
-  { id: 'speaker', name: 'Smart speaker', updateMs: 50, renderMs: 0, finalMs: 0, mode: 'stream', pipelineMs: 550, protocol: 'ws' },
-  { id: 'ide', name: 'IDE / terminal agent', updateMs: 50, renderMs: 0, finalMs: 0, mode: 'stream', pipelineMs: 0, protocol: 'sse' },
-  { id: 'badge', name: 'E-paper badge (ESP32)', updateMs: 3000, renderMs: 1500, finalMs: 2000, mode: 'final', pipelineMs: 0, protocol: 'mesh' },
+  { id: 'browser', name: 'Laptop browser', updateMs: 16, renderMs: 2, finalMs: 2, mode: 'stream', pipelineMs: 0, protocol: 'sse', thinking: true },
+  { id: 'phone', name: 'Phone app', updateMs: 33, renderMs: 4, finalMs: 4, mode: 'stream', pipelineMs: 0, protocol: 'sse', thinking: true },
+  { id: 'kindle', name: 'Kindle (e-ink)', updateMs: 1000, renderMs: 450, finalMs: 450, mode: 'final', pipelineMs: 0, protocol: 'http', thinking: false },
+  { id: 'speaker', name: 'Smart speaker', updateMs: 50, renderMs: 0, finalMs: 0, mode: 'stream', pipelineMs: 550, protocol: 'ws', thinking: false },
+  { id: 'ide', name: 'IDE / terminal agent', updateMs: 50, renderMs: 0, finalMs: 0, mode: 'stream', pipelineMs: 0, protocol: 'sse', thinking: true },
+  { id: 'badge', name: 'E-paper badge (ESP32)', updateMs: 3000, renderMs: 1500, finalMs: 2000, mode: 'final', pipelineMs: 0, protocol: 'mesh', thinking: false },
 ];
 
 // ── Links ──

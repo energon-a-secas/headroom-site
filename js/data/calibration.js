@@ -36,6 +36,7 @@ export const CALIBRATION = [
   { box: 'dgx-spark', model: 'qwen3-30b-a3b', quant: 'q4', runtime: 'llamacpp', tg: 89.3, pp: 2541, chunk: 512, source: 'DandinPower bench, 2025-12', url: 'https://github.com/DandinPower/llama.cpp_bench/blob/main/dgx_spark/report.md' },
   { box: 'dgx-spark', model: 'qwen3-32b', quant: 'q4', runtime: 'llamacpp', tg: 10.7, pp: 762, chunk: 512, source: 'DandinPower bench, 2025-12', url: 'https://github.com/DandinPower/llama.cpp_bench/blob/main/dgx_spark/report.md' },
   { box: 'dgx-spark', model: 'llama-3.1-8b', quant: 'q8', runtime: 'sglang', tg: 20.5, pp: 7991, chunk: 2048, source: 'LMSYS review, SGLang FP8', url: LMSYS },
+  { box: 'dgx-spark', model: 'gpt-oss-120b', quant: 'mxfp4', runtime: 'vllm', tg: null, pp: 4892, chunk: 2048, source: 'NVIDIA forum, community CUTLASS vLLM builds, early 2026 (stock vLLM is slower)', url: 'https://forums.developer.nvidia.com/t/356651' },
   { box: 'dgx-spark', model: 'gpt-oss-20b', quant: 'mxfp4', runtime: 'ollama', tg: 49.7, pp: 2053, chunk: 512, source: 'LMSYS review, Ollama, 2025-10', url: LMSYS },
   { box: 'ryzen-ai-halo', model: 'gpt-oss-20b', quant: 'mxfp4', runtime: 'llamacpp', tg: 73.1, pp: 1787, chunk: 512, source: 'kyuz0 ROCm, 2026-05', url: KY },
   { box: 'ryzen-ai-halo', model: 'gpt-oss-120b', quant: 'mxfp4', runtime: 'llamacpp', tg: 51.8, pp: 626, chunk: 512, source: 'kyuz0 ROCm, 2026-05', url: KY },

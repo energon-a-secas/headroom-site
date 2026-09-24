@@ -29,11 +29,11 @@ export function makeServer(eng, idx) {
     queue: [], running: [],
     kvUsed: 0, kvPeak: 0,
     busy: false, iter: null,
-    slots: slotted ? Array.from({ length: eng.maxBatch }, () => ({ req: null, lastUser: -1, lastGroup: -1 })) : null,
+    slots: slotted ? Array.from({ length: eng.maxBatch }, () => ({ req: null, lastUser: -1, lastPrefix: '' })) : null,
     host: new Map(), hostBytes: 0,
     cache: new Map(), cacheBytes: 0, pinnedBytes: 0,
     stats: { busyS: 0, memS: 0, compS: 0, bytes: 0, flops: 0, tokOut: 0, tokPrefill: 0, tokCached: 0,
-      batchTime: 0, blockedSlots: 0, blockedKv: 0, iters: 0, steps: 0 },
+      batchTime: 0, blockedSlots: 0, blockedKv: 0, iters: 0, steps: 0, kvBytes: 0 },
   };
 }
 
@@ -87,17 +87,18 @@ function claim(eng, srv, r) {
   let cached = 0;
   if (srv.slotted) {
     const free = srv.slots.filter((s) => !s.req);
-    const pick = (eng.rt.prefixCache && (free.find((s) => s.lastUser === r.uid) || free.find((s) => s.lastGroup === r.gi))) || free[0];
+    const pk = `p:${r.prefixKey}`;
+    const pick = (eng.rt.prefixCache && (free.find((s) => s.lastUser === r.uid) || free.find((s) => s.lastPrefix === r.prefixKey))) || free[0];
     const host = eng.rt.prefixCache && eng.rt.hostCacheGB > 0;
     // A slot holds its last prompt; a host-RAM cache restores the rest.
-    if (eng.rt.prefixCache && (pick.lastGroup === r.gi || (host && srv.host.has(`p${r.gi}`)))) cached += hitPrefix;
+    if (eng.rt.prefixCache && (pick.lastPrefix === r.prefixKey || (host && srv.host.has(pk)))) cached += hitPrefix;
     if (eng.rt.prefixCache && pick.lastUser === r.uid) cached += hitHistory;
     else if (host && srv.host.has(`u${r.uid}`)) cached += Math.min(srv.host.get(`u${r.uid}`).tokens, hitHistory);
-    if (host) { hostTouch(srv, `p${r.gi}`); hostTouch(srv, `u${r.uid}`); }
-    pick.req = r; pick.lastUser = r.uid; pick.lastGroup = r.gi;
+    if (host) { hostTouch(srv, pk); hostTouch(srv, `u${r.uid}`); }
+    pick.req = r; pick.lastUser = r.uid; pick.lastPrefix = r.prefixKey;
     r.slot = pick;
   } else if (eng.rt.prefixCache) {
-    const pk = `p${r.gi}`;
+    const pk = `p:${r.prefixKey}`;
     const had = srv.cache.has(pk);
     const pe = touch(srv, pk, kvBytes(eng.fp, r.prefix), r.prefix);
     if (pe.refs++ === 0) srv.pinnedBytes += pe.bytes;
@@ -116,7 +117,7 @@ export function admit(eng, srv, t, hooks) {
     if (srv.running.length >= eng.maxBatch) return 'slots';
     const need = reserveBytes(eng, srv, r);
     if (!srv.slotted) {
-      const prefixNew = eng.rt.prefixCache && !srv.cache.has(`p${r.gi}`) ? kvBytes(eng.fp, r.prefix) : 0;
+      const prefixNew = eng.rt.prefixCache && !srv.cache.has(`p:${r.prefixKey}`) ? kvBytes(eng.fp, r.prefix) : 0;
       if (srv.kvUsed + srv.pinnedBytes + prefixNew + need > eng.kvPool) {
         if (srv.running.length === 0 && srv.pinnedBytes === 0) {
           srv.queue.shift();
@@ -177,7 +178,7 @@ export function plan(eng, srv, t, horizon) {
       st = stepTime(eng, decode.length, kvRead + decode.length * fp.kvFull * grow, attn + decode.length * fp.attnFull * grow, 0, 0);
     }
   }
-  srv.iter = { t0: t, k, dur: k * st.t, decode, parts, st };
+  srv.iter = { t0: t, k, dur: k * st.t, decode, parts, st, kvRead: kvRead + (k > 1 ? decode.length * fp.kvFull * (k - 1) / 2 : 0) };
   return srv.iter.dur;
 }
 
@@ -189,6 +190,7 @@ export function finish(eng, srv, t1, hooks) {
   s.busyS += it.dur; s.iters += it.k; s.steps++;
   s.memS += it.k * it.st.tMem; s.compS += it.k * it.st.tComp;
   s.bytes += it.k * it.st.bytes; s.flops += it.k * it.st.flops;
+  s.kvBytes += it.k * it.kvRead;
   s.batchTime += it.decode.length * it.dur;
 
   const done = [];
@@ -219,14 +221,14 @@ function release(eng, srv, r, t, hooks) {
   if (r.slot) {
     r.slot.req = null; r.slot = null;
     if (eng.rt.prefixCache && eng.rt.hostCacheGB > 0) {
-      hostPut(eng, srv, `p${r.gi}`, r.prefix);
-      if (r.keepsHistory) hostPut(eng, srv, `u${r.uid}`, r.history + r.prompt + r.output);
+      hostPut(eng, srv, `p:${r.prefixKey}`, r.prefix);
+      if (r.keepsHistory) hostPut(eng, srv, `u${r.uid}`, r.history + r.prompt + r.visible);
     }
   }
   if (r.prefixEntry && --r.prefixEntry.refs === 0) srv.pinnedBytes -= r.prefixEntry.bytes;
   r.prefixEntry = null;
   if (!srv.slotted && eng.rt.prefixCache && r.keepsHistory) {
-    const tokens = r.history + r.prompt + r.output;
+    const tokens = r.history + r.prompt + r.visible;
     const key = `u${r.uid}`;
     const old = srv.cache.get(key);
     if (old) { srv.cache.delete(key); srv.cacheBytes -= old.bytes; }

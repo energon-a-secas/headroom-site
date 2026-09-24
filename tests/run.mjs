@@ -12,7 +12,7 @@ import { MISSIONS, scoreMission } from '../js/data/missions.js';
 import { CALIBRATION, BATCH_CALIBRATION } from '../js/data/calibration.js';
 import { CROWDS } from '../js/state.js';
 import { USE_CASES } from './use-cases.mjs';
-import { solve, scenarioFor } from './pars.mjs';
+import { worstPass, SEEDS } from './pars.mjs';
 
 const results = [];
 const test = (name, fn) => {
@@ -92,17 +92,15 @@ test('mixture-of-experts batching scales less than dense', () => {
 });
 
 // ── Missions: every par setup earns three stars, and pars match the solver ──
+// Minimality (nothing cheaper passes) is make pars --check, which is slow;
+// here the recorded setup must still earn three stars on every seed.
 for (const m of MISSIONS) {
-  test(`mission ${m.id}: par is the cheapest setup that serves the crowd`, () => {
-    const best = solve(m);
-    assert(best, 'no catalog setup serves this crowd');
-    const par = Math.ceil(best.price / 100) * 100;
-    assert(par === m.par, `solver says par ${par}, missions.js says ${m.par}`);
-    const r = runScenario(scenarioFor(m, best.setup), { duration: m.duration });
-    const s = scoreMission(m, r);
-    assert(s.stars === 3, `par setup scores ${s.stars} stars`);
-    const b = best.setup;
-    return `$${par}: ${b.count}x ${b.box}, ${b.model} ${b.quant}, ${b.runtime}`;
+  test(`mission ${m.id}: its par setup earns three stars on every seed`, () => {
+    assert(m.parSetup, 'missions.js has no parSetup; run make pars');
+    const pass = worstPass(m, m.parSetup, 3);
+    assert(pass >= 0, `the par setup misses three stars on one of seeds ${SEEDS.join(', ')}`);
+    const b = m.parSetup;
+    return `$${m.par}: ${b.count}x ${b.box}, ${b.model} ${b.quant}, ${b.runtime}, worst seed ${Math.round(pass * 100)}%`;
   });
 }
 

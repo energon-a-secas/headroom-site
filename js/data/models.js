@@ -16,6 +16,11 @@
 //   moe               { experts, topK }; the always-read shared part is derived in perf.js
 //   bits              { shared, expert } for checkpoints shipped pre-quantized
 //   tier              coarse capability guide, 1 (toy) to 5 (frontier-class open model)
+//   reasons           { min }: the model always reasons before it answers, and even
+//                     its lowest effort writes about `min` hidden tokens first.
+//                     Hybrid models (Qwen3, GLM) are modelled with thinking off,
+//                     as their instruct builds run; a persona tweak `reason` adds
+//                     thinking tokens back.
 
 export const MODELS = [
   {
@@ -41,7 +46,8 @@ export const MODELS = [
     totalB: 20.9, activeB: 3.6, embedB: 0.58, layers: 24, qHeads: 64, kvHeads: 8, headDim: 64,
     attn: { full: 12, sliding: 12, window: 128 }, maxCtx: 131072, tier: 3,
     moe: { experts: 32, topK: 4 }, bits: { shared: 16, expert: 4.25 },
-    quants: ['mxfp4'], note: 'Ships in MXFP4. Half its layers use a 128-token sliding window, so KV stays small.',
+    quants: ['mxfp4'], reasons: { min: 60 },
+    note: 'Ships in MXFP4 and always reasons before answering, about 60 tokens even at low effort. Half its layers use a 128-token sliding window, so KV stays small.',
   },
   {
     id: 'qwen3-30b-a3b', name: 'Qwen3 30B-A3B', maker: 'Alibaba',
@@ -100,7 +106,8 @@ export const MODELS = [
     totalB: 116.8, activeB: 5.1, embedB: 0.58, layers: 36, qHeads: 64, kvHeads: 8, headDim: 64,
     attn: { full: 18, sliding: 18, window: 128 }, maxCtx: 131072, tier: 4,
     moe: { experts: 128, topK: 4 }, bits: { shared: 16, expert: 4.25 },
-    quants: ['mxfp4'], note: 'About 61 GB on disk. The model most 128 GB boxes are bought to run.',
+    quants: ['mxfp4'], reasons: { min: 60 },
+    note: 'About 61 GB on disk, and it always reasons before answering. The model most 128 GB boxes are bought to run.',
   },
   {
     id: 'qwen3-235b-a22b', name: 'Qwen3 235B-A22B', maker: 'Alibaba',
@@ -113,8 +120,8 @@ export const MODELS = [
     id: 'deepseek-r1', name: 'DeepSeek R1 671B', maker: 'DeepSeek',
     totalB: 671, activeB: 37, embedB: 0.93, layers: 61, qHeads: 128, kvHeads: 1, headDim: 576,
     attn: { full: 61, sliding: 0, window: 0 }, kvBytesOverride: 70272, maxCtx: 131072, tier: 5,
-    moe: { experts: 256, topK: 8 },
-    note: 'Multi-head latent attention compresses KV to 576 values per layer. Weights are the problem: 400 GB at 4-bit.',
+    moe: { experts: 256, topK: 8 }, reasons: { min: 500 },
+    note: 'Always thinks first, often for thousands of tokens. Multi-head latent attention compresses KV to 576 values per layer. Weights are the problem: 400 GB at 4-bit.',
   },
   // Calibration yardsticks: hidden from the picker, used by the Method tab.
   {

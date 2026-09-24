@@ -7,7 +7,7 @@ import { MODELS, KV_DTYPES, quantsFor, modelById } from '../data/models.js';
 import { RUNTIMES, runtimeById } from '../data/runtimes.js';
 import { PERSONAS, CLIENTS, LINKS, PROTOCOLS, personaById, clientById, linkById, protocolById } from '../data/crowd.js';
 import { buildEngine, fmtK } from '../engine/perf.js';
-import { engineSummary } from '../engine/report.js';
+import { engineSummary, fmtTier } from '../engine/report.js';
 import { CROWDS } from '../state.js';
 import { escHtml as e, fmtUsd, fmtGB, fmtTps, fmtInt } from '../utils.js';
 import { deviceImage } from './device-art.js';
@@ -130,7 +130,7 @@ function modelPanel(sc, eng) {
       <dt>Weights</dt><dd>${fmtGB(s.weightsGB)} of ${fmtGB(s.usableGB)}</dd>
       <dt>KV cache</dt><dd>${fmtGB(s.kvPoolGB)} · ${Math.round(s.kvPerTokKB)} KB/token</dd>
       <dt>One user</dt><dd>${fmtTps(s.decodeTps)} · prompt ${fmtInt(s.prefillTps)} tok/s</dd>
-      <dt>Capability</dt><dd title="Coarse editorial tier, 1 to 5">${stars} ${s.tier.toFixed(1)}</dd>
+      <dt>Capability</dt><dd title="Coarse editorial tier, 1 to 5">${stars} ${fmtTier(s.tier)}</dd>
     </dl>`;
   return `<section class="panel" aria-label="Model">
     <h3 class="panel__title">Choose a model</h3>

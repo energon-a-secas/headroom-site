@@ -88,7 +88,8 @@ export function buildReport(sim, duration) {
   const tokOut = sum((s) => s.tokOut);
   const intensity = busy > 0 ? Math.min(1, Math.max(bwUtil, computeUtil) / busy) : 0;
   const avgW = eng.idleW + (eng.loadW - eng.idleW) * Math.min(1, busy) * (0.55 + 0.45 * intensity);
-  const util = { busy, bwUtil, computeUtil, memShare, kvPeak, avgBatch, blockedSlots, blockedKv,
+  const kvShare = sum((s) => s.bytes) ? sum((s) => s.kvBytes) / sum((s) => s.bytes) : 0;
+  const util = { busy, bwUtil, computeUtil, memShare, kvPeak, kvShare, avgBatch, blockedSlots, blockedKv,
     cacheHit: cached + prefilled ? cached / (cached + prefilled) : 0, tokPerS: tokOut / D, avgW };
 
   // ── Outcome ──
@@ -101,7 +102,7 @@ export function buildReport(sim, duration) {
     for (const k in g.fail) fails[k] = (fails[k] || 0) + g.fail[k];
   }
   const bottleneck = findBottleneck({ eng, groups, util, blame, fails, passRate, tot });
-  const verdict = judge({ passRate, util, tot, bottleneck });
+  const verdict = judge({ passRate, util, tot, bottleneck, groups });
   const econ = economics(sim, groups, util, T);
   return {
     ok: true, engine: summary, groups, util, blame, fails, passRate,
@@ -120,9 +121,12 @@ function findBottleneck({ eng, groups, util, blame, fails, passRate, tot }) {
       : `cannot join: the ${g.link} holds ${g.maxClients} clients`;
     return { id: 'connections', label: 'Connections', text: `${g.unserved} ${g.persona.toLowerCase()} ${one ? 'user' : 'users'} ${why}.` };
   }
-  const ctxFails = fails.context || 0;
+  const cut = fails.truncated || 0;
+  const ctxFails = (fails.context || 0) + cut;
   if (ctxFails > 0 && ctxFails >= 0.2 * (tot.n || 1)) {
-    return { id: 'context', label: 'Context window', text: `${ctxFails} requests were longer than the ${fmtK(eng.slotCtx)} context the server was started with.` };
+    return { id: 'context', label: 'Context window', text: cut >= ctxFails / 2
+      ? `${eng.rt.name} cut ${cut} prompts to fit its ${fmtK(eng.slotCtx)} window and answered without their start, so those answers were on time and wrong.`
+      : `${ctxFails} requests were longer than the ${fmtK(eng.slotCtx)} context the server was started with.` };
   }
   const missing = passRate === null || passRate < 0.95;
   if (missing) {
@@ -148,6 +152,11 @@ function findBottleneck({ eng, groups, util, blame, fails, passRate, tot }) {
   return { id: 'none', label: 'Nothing yet', near: near[0], text: `Every group is inside its targets. First to run out would be ${LABELS[near[0]].toLowerCase()} (${Math.round(near[1] * 100)}% used).` };
 }
 
+/** A tier never rounds up across a floor: 4.45 shows as 4.45, not 4.5. */
+export function fmtTier(t) {
+  return Math.abs(t * 10 - Math.round(t * 10)) < 1e-9 ? t.toFixed(1) : t.toFixed(2);
+}
+
 export const LABELS = {
   bandwidth: 'Memory bandwidth', compute: 'Compute', prefill: 'Prompt processing', kv: 'KV cache memory',
   slots: 'Parallel slots', link: 'Network link', client: 'Client device', connections: 'Connections',
@@ -155,12 +164,15 @@ export const LABELS = {
 };
 const mk = (id, share, text) => ({ id, label: LABELS[id], share, text });
 
-function judge({ passRate, util, tot, bottleneck }) {
+function judge({ passRate, util, tot, bottleneck, groups }) {
   if (tot.unserved > 0) return { id: 'overloaded', label: 'Overloaded', text: `${tot.unserved} of ${tot.users} users could not connect at all.` };
   if (passRate === null) return { id: 'idle', label: 'No answers yet', text: 'Nobody finished a request in the measured window. Run longer, or check the context window.' };
   const p = Math.round(passRate * 100);
   if (passRate < 0.8) return { id: 'overloaded', label: 'Overloaded', text: `Only ${p}% of answers met their target. ${bottleneck.label} is the limit.` };
   if (passRate < 0.95) return { id: 'tight', label: 'Tight', text: `${p}% of answers on target, short of 95%. ${bottleneck.label} is the limit.` };
+  // A pooled share can hide one group that is failing behind an easy one.
+  const worst = groups.filter((g) => g.n > 0 && g.passPct !== null).sort((a, b) => a.passPct - b.passPct)[0];
+  if (worst && worst.passPct < 0.95) return { id: 'tight', label: 'Tight', text: `${p}% overall, but ${worst.count} x ${worst.persona.toLowerCase()} get only ${Math.round(worst.passPct * 100)}% on target.` };
   if (util.busy > 0.85) return { id: 'tight', label: 'Tight', text: `${p}% of answers on target with the box ${Math.round(util.busy * 100)}% busy. A few more users will tip it over.` };
   if (util.busy < 0.25) return { id: 'overkill', label: 'Overkill', text: `${p}% on target, but the box idles ${Math.round((1 - util.busy) * 100)}% of the time. A cheaper box may do the same job.` };
   return { id: 'right', label: 'Right-sized', text: `${p}% of answers on target with the box ${Math.round(util.busy * 100)}% busy. Room for more users before answers slip.` };
@@ -209,9 +221,14 @@ function advise(eng, b, util, groups, verdict) {
     case 'kv':
       out.push(`Quantize the KV cache to Q8 to fit twice the conversations, or cap the context. This model stores ${Math.round(eng.fp.kvFull / 1024)} KB per token.`);
       break;
-    case 'bandwidth':
-      out.push(`Generation is limited by memory bandwidth: one token reads about ${perStepGB.toFixed(1)} GB. A lower quant, a mixture-of-experts model or more GB/s helps; more TFLOPS does not.`);
+    case 'bandwidth': {
+      if (util.kvShare > 0.5) {
+        out.push(`Generation is limited by memory bandwidth, and most of it is conversation memory: each step reads more KV cache than weights. Quantize the KV cache to Q8, cap the context, or pick a model that stores less KV per token. A lower weight quant helps less.`);
+      } else {
+        out.push(`Generation is limited by memory bandwidth: one token reads about ${perStepGB.toFixed(1)} GB of weights. A lower quant, a mixture-of-experts model or more GB/s helps; more TFLOPS does not.`);
+      }
       break;
+    }
     case 'compute':
       out.push('Generation is compute-bound at this batch size. A lower-precision format, or more tensor TFLOPS, helps.');
       break;
@@ -235,7 +252,7 @@ function advise(eng, b, util, groups, verdict) {
     default: break;
   }
   if (verdict.id === 'overkill') out.push('Open Compare to see which cheaper boxes still pass this crowd.');
-  if (eng.quant.tierLoss >= 0.45) out.push(`${eng.quant.label} costs noticeable answer quality; the capability tier drops to ${eng.tier.toFixed(1)}.`);
+  if (eng.quant.tierLoss >= 0.45) out.push(`${eng.quant.label} costs noticeable answer quality; the capability tier drops to ${fmtTier(eng.tier)}.`);
   const trunc = groups.reduce((a, g) => a + g.truncated, 0);
   if (trunc > 0) out.push(`${trunc} conversations were cut short to fit the ${fmtK(eng.slotCtx)} context; users lose earlier turns.`);
   return out.slice(0, 3);

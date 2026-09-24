@@ -98,9 +98,9 @@ export function buildEngine(sc) {
   const split = sc.box.mode === 'split' && count > 1 ? count : 1;
   const servers = sc.box.mode === 'split' ? 1 : count;
 
-  // Low-precision tensor math needs both a runtime that has the kernels and
-  // weights stored at that precision.
-  const dtype = rt.lowPrecision && box.platform === 'cuda' ? quant.compute : 'fp16';
+  // Low-precision tensor math needs a runtime with the kernels, weights stored
+  // at that precision, and a chip the serving stack actually runs them on.
+  const dtype = rt.lowPrecision && (box.lowPrecision || []).includes(quant.compute) ? quant.compute : 'fp16';
   const tpEff = split > 1 ? 0.9 : 1;
   const bw = box.bwGBs * G * rt.bwEff * box.eff.bw * split * tpEff;
   const flops = (box.tflops[dtype] || box.tflops.fp16) * 1e12 * rt.computeEff * box.eff.compute * split * tpEff;
@@ -142,7 +142,7 @@ export function buildEngine(sc) {
   return {
     box, model, quant, kv, rt, fp, dtype,
     servers, split, count,
-    bw, flops, launchS, moeM0: box.eff.moeM0 ?? 16,
+    bw, flops, launchS, moeM0: (box.eff.moeM0 ?? 16) * (rt.moeScale ?? 1),
     peakBw: box.bwGBs * G * split, peakFlops: (box.tflops[dtype] || box.tflops.fp16) * 1e12 * split,
     stepS: (rt.stepMs / 1000) * stepMul + commFixed,
     perSeqS: (rt.perSeqMs / 1000) * stepMul,

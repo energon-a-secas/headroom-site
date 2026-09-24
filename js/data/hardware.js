@@ -13,6 +13,10 @@
 //   eff.step    fixed per-iteration overhead multiplier (host CPU, launch latency)
 //   eff.moeM0   how badly small per-expert matrix multiplies run during prompt
 //               processing: efficiency is m / (m + moeM0) for m tokens per expert
+//               (scaled by the runtime's moeScale)
+//   lowPrecision  tensor precisions the serving stacks actually run fast on this
+//               chip. Stock vLLM runs MXFP4 on GB10 through a BF16 fallback, so
+//               no Blackwell box here lists fp4 until that changes.
 //   idleW/loadW wall power at idle and under sustained inference
 //   link        interconnect used when two or more boxes split one model
 //   status      shipping | discontinued | announced | custom
@@ -26,7 +30,7 @@ const ASOF = '2026-09-23';
 export const BOXES = [
   {
     id: 'dgx-spark', name: 'NVIDIA DGX Spark', short: 'DGX Spark', maker: 'NVIDIA', chip: 'GB10 Grace Blackwell',
-    platform: 'cuda', status: 'shipping', priceUsd: 4699, priceAsOf: ASOF,
+    platform: 'cuda', lowPrecision: ['fp8'], status: 'shipping', priceUsd: 4699, priceAsOf: ASOF,
     priceNote: 'Launched at $3,999 in October 2025; NVIDIA raised it to $4,699 in February 2026.',
     memGB: 128, usableGB: 116, bwGBs: 273, tflops: { fp16: 100, fp8: 208, fp4: 427 },
     eff: { bw: 1.0, compute: 0.98, step: 1, moeM0: 110 }, idleW: 35, loadW: 160,
@@ -36,7 +40,7 @@ export const BOXES = [
   },
   {
     id: 'asus-gx10', name: 'ASUS Ascent GX10', short: 'Ascent GX10', maker: 'ASUS', chip: 'GB10 Grace Blackwell',
-    platform: 'cuda', status: 'shipping', priceUsd: 3999, priceAsOf: ASOF,
+    platform: 'cuda', lowPrecision: ['fp8'], status: 'shipping', priceUsd: 3999, priceAsOf: ASOF,
     priceNote: 'US list $3,999 in August 2026; the ASUS eShop showed $6,999 and out of stock on 2026-09-23. It was $3,100 on Amazon in January.',
     memGB: 128, usableGB: 116, bwGBs: 273, tflops: { fp16: 100, fp8: 208, fp4: 427 },
     eff: { bw: 1.0, compute: 0.98, step: 1, moeM0: 110 }, idleW: 32, loadW: 150,
@@ -66,7 +70,7 @@ export const BOXES = [
   },
   {
     id: 'jetson-thor', name: 'Jetson AGX Thor dev kit', short: 'Jetson Thor', maker: 'NVIDIA', chip: 'Blackwell, 2560 cores',
-    platform: 'cuda', status: 'shipping', priceUsd: 3499, priceAsOf: ASOF, priceNote: 'Developer kit list price. NVIDIA quotes 2,070 sparse FP4 TFLOPS, but measured prompt speed is half that of a DGX Spark, so the rates here follow the measurements.',
+    platform: 'cuda', lowPrecision: ['fp8'], status: 'shipping', priceUsd: 3499, priceAsOf: ASOF, priceNote: 'Developer kit list price. NVIDIA quotes 2,070 sparse FP4 TFLOPS, but measured prompt speed is half that of a DGX Spark, so the rates here follow the measurements.',
     memGB: 128, usableGB: 112, bwGBs: 273, tflops: { fp16: 100, fp8: 200, fp4: 400 },
     eff: { bw: 0.75, compute: 0.45, step: 1.2, moeM0: 110 }, idleW: 20, loadW: 130,
     net: '5 GbE, QSFP28 (4x 25 GbE), Wi-Fi 6E',
@@ -105,7 +109,7 @@ export const BOXES = [
   },
   {
     id: 'rtx-5090', name: 'Desktop with RTX 5090', short: 'RTX 5090 PC', maker: 'NVIDIA + your PC', chip: 'GeForce RTX 5090, 32 GB GDDR7',
-    platform: 'cuda', status: 'shipping', priceUsd: 5700, priceAsOf: ASOF,
+    platform: 'cuda', lowPrecision: ['fp8'], status: 'shipping', priceUsd: 5700, priceAsOf: ASOF,
     priceNote: 'GPU $4,200 at its 90-day low (MSRP $1,999; Amazon $6,699 new) plus about $1,500 for the host PC.',
     memGB: 32, usableGB: 30, bwGBs: 1792, tflops: { fp16: 419, fp8: 419, fp4: 1676 },
     eff: { bw: 1.0, compute: 0.96, step: 0.5, moeM0: 110 }, idleW: 75, loadW: 650,
@@ -115,7 +119,7 @@ export const BOXES = [
   },
   {
     id: 'rtx-pro-6000', name: 'Workstation with RTX PRO 6000', short: 'RTX PRO 6000', maker: 'NVIDIA + workstation', chip: 'RTX PRO 6000 Blackwell, 96 GB GDDR7',
-    platform: 'cuda', status: 'shipping', priceUsd: 11100, priceAsOf: ASOF,
+    platform: 'cuda', lowPrecision: ['fp8'], status: 'shipping', priceUsd: 11100, priceAsOf: ASOF,
     priceNote: 'GPU MSRP $8,565 (Amazon lists $15,930) plus about $2,500 for the workstation.',
     memGB: 96, usableGB: 92, bwGBs: 1792, tflops: { fp16: 500, fp8: 1000, fp4: 2000 },
     eff: { bw: 0.92, compute: 0.9, step: 0.5, moeM0: 110 }, idleW: 90, loadW: 750,
@@ -145,7 +149,7 @@ export const BOXES = [
   },
   {
     id: 'rtx-spark-devbox', name: 'Surface RTX Spark Dev Box', short: 'RTX Spark box', maker: 'Microsoft + NVIDIA', chip: 'NVIDIA N1X (RTX Spark)',
-    platform: 'cuda', status: 'announced', priceUsd: 3250, priceAsOf: ASOF,
+    platform: 'cuda', lowPrecision: ['fp8'], status: 'announced', priceUsd: 3250, priceAsOf: ASOF,
     priceNote: 'Announced 2026-05-31 for fall 2026 with no price; $3,000 to $3,500 is a rumor. Bandwidth and TFLOPS are unpublished: these assume GB10-class memory in a 45 to 80 W chip.',
     memGB: 128, usableGB: 110, bwGBs: 273, tflops: { fp16: 50, fp8: 100, fp4: 200 },
     eff: { bw: 0.95, compute: 0.9, step: 1, moeM0: 110 }, idleW: 10, loadW: 100,
@@ -168,7 +172,7 @@ export const BOXES = [
 /** Starting point for the custom box editor. */
 export const CUSTOM_BOX = {
   id: 'custom', name: 'Custom box', short: 'Custom', maker: 'You', chip: 'Your numbers',
-  platform: 'cuda', status: 'custom', priceUsd: 3000, priceAsOf: '', priceNote: 'Your numbers.',
+  platform: 'cuda', lowPrecision: ['fp8'], status: 'custom', priceUsd: 3000, priceAsOf: '', priceNote: 'Your numbers.',
   memGB: 128, usableGB: 116, bwGBs: 300, tflops: { fp16: 80, fp8: 160, fp4: 320 },
   eff: { bw: 1.0, compute: 0.9, step: 1, moeM0: 110 }, idleW: 30, loadW: 200,
   net: 'Your network', link: { name: '10 GbE', latencyUs: 45, gbps: 10 }, pairable: true,

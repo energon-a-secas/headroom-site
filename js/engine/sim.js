@@ -22,9 +22,7 @@ import { buildReport } from './report.js';
 
 export const U = { THINK: 0, SEND: 1, QUEUE: 2, PREFILL: 3, DECODE: 4, RECV: 5, READ: 6, OFF: 7 };
 const EV = { SEND: 1, ARRIVE: 2, ITER: 3, DELIVER: 4, ABANDON: 5 };
-const BELL0 = 30;        // first classroom bell (s)
-const BELL_EVERY = 300;  // a new exercise every five minutes
-const BELL_SPREAD = 20;  // students submit within 20 s of each other
+const BELL0 = 30;        // first synchronised send (s); personas set their own cadence and spread
 
 function groupStats() {
   return { n: 0, pass: 0, miss: 0, sent: 0, truncated: 0, ttft: [], e2e: [], tps: [], fail: {},
@@ -52,10 +50,13 @@ export function createSim(sc, opts = {}) {
     link: makeLink(g, !!sc.unlimitedLinks), stats: groupStats(), users: [], unserved: 0, offReason: '',
   }));
 
-  const nextBell = (t) => BELL0 + Math.max(0, Math.ceil((t - BELL0) / BELL_EVERY)) * BELL_EVERY;
+  const nextBell = (t, P) => {
+    const every = P.burstEvery || 300;
+    return BELL0 + Math.max(0, Math.ceil((t - BELL0) / every)) * every;
+  };
   const nextSend = (G, t) => {
     const P = G.persona;
-    if (P.burst) return nextBell(t) + rng.range(0, BELL_SPREAD);
+    if (P.burst) return nextBell(t, P) + rng.range(0, P.burstSpread ?? 20);
     return t + (P.think > 0 ? rng.exp(P.think) : 0.05);
   };
 
@@ -71,7 +72,7 @@ export function createSim(sc, opts = {}) {
         continue;
       }
       const P = G.persona;
-      const first = P.burst ? BELL0 + rng.range(0, BELL_SPREAD) : rng.range(0, Math.max(3, P.think));
+      const first = P.burst ? BELL0 + rng.range(0, P.burstSpread ?? 20) : rng.range(0, Math.max(3, P.think));
       heap.push({ t: first, type: EV.SEND, u });
     }
   }
@@ -85,9 +86,11 @@ export function createSim(sc, opts = {}) {
     if (r.failed) { S.fail[r.failed] = (S.fail[r.failed] || 0) + 1; S.miss++; win.miss++; return; }
     const ttft = r.tFirstVisible - r.tSend;
     const e2e = t - r.tSend;
-    const streamed = r.stream && G.client.mode === 'stream' && r.output > 1;
-    const tps = streamed ? (r.output - 1) / Math.max(1e-3, r.tLastDelivered - r.tFirstDelivered) : null;
-    const pass = (!P.slo.ttft || ttft <= P.slo.ttft) && (!P.slo.tps || tps === null || tps >= P.slo.tps) && (!P.slo.e2e || e2e <= P.slo.e2e);
+    const streamed = r.stream && G.client.mode === 'stream' && r.shown > 1 && r.tFirstDelivered !== undefined;
+    const tps = streamed ? (r.shown - 1) / Math.max(1e-3, r.tLastDelivered - r.tFirstDelivered) : null;
+    // A prompt the server cut to fit is answered on time and still wrong.
+    const pass = !r.cut && (!P.slo.ttft || ttft <= P.slo.ttft) && (!P.slo.tps || tps === null || tps >= P.slo.tps) && (!P.slo.e2e || e2e <= P.slo.e2e);
+    if (r.cut) S.fail.truncated = (S.fail.truncated || 0) + 1;
     S.ttft.push(ttft); S.e2e.push(e2e); if (tps !== null) S.tps.push(tps);
     S.tokIn += r.total; S.tokOut += r.output;
     if (r.truncated) S.truncated++;
@@ -106,9 +109,15 @@ export function createSim(sc, opts = {}) {
       const missFirst = P.slo.ttft && ttft > P.slo.ttft;
       const missSpeed = P.slo.tps && tps !== null && tps < P.slo.tps;
       const missWhole = P.slo.e2e && e2e > P.slo.e2e;
-      if (missWhole || (!missFirst && !missSpeed)) for (const k in parts) S.blame[k] += parts[k];
+      if (r.cut && !missFirst && !missSpeed && !missWhole) { /* wrong, not slow: nothing to blame on time */ }
+      else if (missWhole || (!missFirst && !missSpeed)) for (const k in parts) S.blame[k] += parts[k];
       else {
-        if (missFirst) { S.blame.net += r.tArrive - r.tSend; S.blame.queue += parts.queue; S.blame.prefill += parts.prefill; }
+        if (missFirst) {
+          S.blame.net += r.tArrive - r.tSend; S.blame.queue += parts.queue; S.blame.prefill += parts.prefill;
+          // Hidden tokens (reasoning, a tool call, the speech buffer) are
+          // generated before the first word, so they count against it too.
+          if (r.tFirstVisibleServer) S.blame.decode += Math.max(0, r.tFirstVisibleServer - r.tFirstServer);
+        }
         if (missSpeed) S.blame.decode += parts.decode;
       }
     }
@@ -123,6 +132,16 @@ export function createSim(sc, opts = {}) {
     heap.push({ t: nextSend(G, t + Math.max(5, G.persona.think)), type: EV.SEND, u });
   }
 
+  /** The first token a person can see or hear left the server at `t`. */
+  function markVisible(r, t) {
+    const G = groups[r.gi];
+    r.tFirstVisibleServer = t;
+    if (!r.stream) return;
+    const b = streamBurst(G.link, 1, 0);
+    r.tFirstDelivered = r.tLastDelivered = transmit(G.link, t, b.bytes, b.events);
+    if (G.client.mode === 'stream') r.tFirstVisible = r.tFirstDelivered + (G.client.renderMs + G.client.pipelineMs / 2) / 1000;
+  }
+
   // ── Server hooks ──
   const hooks = {
     onAdmit(r) { users[r.uid].state = U.PREFILL; },
@@ -130,13 +149,16 @@ export function createSim(sc, opts = {}) {
       const G = groups[r.gi];
       r.tFirstServer = t;
       users[r.uid].state = U.DECODE;
-      if (r.stream) {
-        const b = streamBurst(G.link, 1, 0);
-        r.tFirstDelivered = r.tLastDelivered = transmit(G.link, t, b.bytes, b.events);
-        if (G.client.mode === 'stream') r.tFirstVisible = r.tFirstDelivered + (G.client.renderMs + G.client.pipelineMs / 2) / 1000;
-      }
+      if (r.firstIdx <= 1) markVisible(r, t);
+      else if (r.stream) r.tLastDelivered = transmit(G.link, t, streamBurst(G.link, 1, 0).bytes, 1);
     },
     onTokens(r, k, t0, t1) {
+      // Reasoning, a tool call or a speech buffer come before the first word:
+      // find when inside this step the first visible token was generated.
+      if (r.tFirstVisibleServer === undefined) {
+        const before = r.generated - k;
+        if (r.firstIdx > before && r.firstIdx <= r.generated) markVisible(r, t0 + ((r.firstIdx - before) / k) * (t1 - t0));
+      }
       if (!r.stream) return;
       const L = groups[r.gi].link;
       const b = streamBurst(L, k, t1 - t0);
@@ -170,7 +192,11 @@ export function createSim(sc, opts = {}) {
     const G = groups[u.gi], P = G.persona;
     const prompt = Math.max(1, Math.round(rng.lognormal(P.prompt, 0.6)));
     const context = P.context ? Math.max(1, Math.round(rng.lognormal(P.context, 0.35))) : 0;
-    const output = Math.max(4, Math.round(rng.lognormal(P.output, 0.5)));
+    const visible = Math.max(4, Math.round(rng.lognormal(P.output, 0.5)));
+    // A reasoning model writes its hidden thinking first; a device may also
+    // need a tool call or a speech buffer before the first word exists.
+    const hidden = Math.max(P.reason || 0, eng.model.reasons?.min || 0);
+    const output = hidden + visible;
     let history = P.history ? u.history : 0;
     let truncated = false;
     const fixed = P.prefix + context + prompt + output;
@@ -180,8 +206,13 @@ export function createSim(sc, opts = {}) {
     }
     const r = {
       id: reqSeq++, uid: u.id, gi: u.gi, tSend: t, prompt, context, history, prefix: P.prefix,
-      total: P.prefix + context + history + prompt, output, keepsHistory: P.history,
-      generated: 0, truncated, stream: G.link.proto.stream,
+      total: P.prefix + context + history + prompt, output, visible, hidden,
+      // An app that streams the thinking block shows reasoning as it comes;
+      // a speaker or an e-ink page waits for the answer itself.
+      shown: G.client.thinking ? output : visible,
+      firstIdx: Math.min(output, (G.client.thinking ? 0 : hidden) + (P.lead || 0) + 1),
+      prefixKey: G.def.prefixId || `${P.id}:${P.prefix}`,
+      keepsHistory: P.history, generated: 0, truncated, stream: G.link.proto.stream,
     };
     u.req = r; u.state = U.SEND; u.since = t;
     if (t >= warmup) G.stats.sent++;
@@ -190,7 +221,13 @@ export function createSim(sc, opts = {}) {
   }
 
   function onArrive(r, t) {
-    if (r.total + r.output > eng.slotCtx) { fail(r, t, 'context'); return; }
+    if (r.total + r.output > eng.slotCtx) {
+      // Ollama keeps about the last half of the window and answers anyway,
+      // without the start of the prompt; other servers refuse the request.
+      const kept = Math.floor(eng.slotCtx / 2);
+      if (!eng.rt.truncates || kept + r.output > eng.slotCtx) { fail(r, t, 'context'); return; }
+      r.cut = true; r.total = kept; r.prefix = 0; r.history = 0;
+    }
     let srv = servers[0];
     for (const s of servers) if (s.queue.length + s.running.length < srv.queue.length + srv.running.length) srv = s;
     r.srv = srv; r.tArrive = t;
@@ -203,9 +240,9 @@ export function createSim(sc, opts = {}) {
   function onDeliver(r, t) {
     const u = users[r.uid], G = groups[r.gi], P = G.persona;
     record(r, t);
-    if (P.history) u.history = r.history + r.prompt + r.output;
+    if (P.history) u.history = r.history + r.prompt + r.visible;
     if (++u.turn >= P.turns) { u.turn = 0; u.history = 0; }
-    const read = P.readTps ? r.output / P.readTps : 0;
+    const read = P.readTps ? r.visible / P.readTps : 0;
     u.state = U.READ; u.readUntil = t + read; u.req = null;
     heap.push({ t: nextSend(G, t + read), type: EV.SEND, u });
   }

@@ -12,6 +12,8 @@
 // Groups use the same shape as a sandbox scenario, including `tweak`
 // (per-mission persona changes, such as a slower answer target).
 
+import { fmtTier } from '../engine/report.js';
+
 export const MISSIONS = [
   {
     id: 'bookclub', title: 'The e-ink book club',
@@ -194,7 +196,7 @@ export function scoreMission(m, report) {
     goalOk = goalOk && ok;
     checks.push({ ok, text: `${Math.round(rate).toLocaleString('en-US')} jobs an hour (goal ${m.perHour.toLocaleString('en-US')})` });
   }
-  checks.push({ ok: tierOk, text: `Capability tier ${report.engine.tier.toFixed(1)} (needs ${m.minTier})` });
+  checks.push({ ok: tierOk, text: `Capability tier ${fmtTier(report.engine.tier)} (needs ${m.minTier})` });
   if (m.maxWatts) {
     const ok = report.util.avgW <= m.maxWatts;
     goalOk = goalOk && ok;
