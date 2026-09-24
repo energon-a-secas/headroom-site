@@ -98,7 +98,20 @@ export function createSim(sc, opts = {}) {
       net: (r.tArrive - r.tSend) + Math.max(0, r.tDelivered - r.tDoneServer),
       render: Math.max(0, t - r.tDelivered),
     };
-    for (const k in parts) { S.time[k] += parts[k]; if (!pass) S.blame[k] += parts[k]; }
+    for (const k in parts) S.time[k] += parts[k];
+    if (!pass) {
+      // Blame only the phases that caused the miss: a late first word is the
+      // wire up, the queue and the prompt; a slow stream is generation; a
+      // late whole answer is everything.
+      const missFirst = P.slo.ttft && ttft > P.slo.ttft;
+      const missSpeed = P.slo.tps && tps !== null && tps < P.slo.tps;
+      const missWhole = P.slo.e2e && e2e > P.slo.e2e;
+      if (missWhole || (!missFirst && !missSpeed)) for (const k in parts) S.blame[k] += parts[k];
+      else {
+        if (missFirst) { S.blame.net += r.tArrive - r.tSend; S.blame.queue += parts.queue; S.blame.prefill += parts.prefill; }
+        if (missSpeed) S.blame.decode += parts.decode;
+      }
+    }
     if (pass) { S.pass++; win.pass++; } else { S.miss++; win.miss++; }
   }
 

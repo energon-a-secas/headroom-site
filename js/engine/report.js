@@ -114,8 +114,11 @@ export function buildReport(sim, duration) {
 function findBottleneck({ eng, groups, util, blame, fails, passRate, tot }) {
   if (tot.unserved > 0) {
     const g = groups.find((x) => x.unserved > 0);
-    const why = g.offReason === 'range' ? `is out of range of the ${g.link}` : `cannot join: the ${g.link} holds ${g.maxClients} clients`;
-    return { id: 'connections', label: 'Connections', text: `${g.unserved} ${g.persona.toLowerCase()} ${g.unserved === 1 ? 'user' : 'users'} ${why}.` };
+    const one = g.unserved === 1;
+    const why = g.offReason === 'range'
+      ? `${one ? 'is' : 'are'} out of range of the ${g.link}`
+      : `cannot join: the ${g.link} holds ${g.maxClients} clients`;
+    return { id: 'connections', label: 'Connections', text: `${g.unserved} ${g.persona.toLowerCase()} ${one ? 'user' : 'users'} ${why}.` };
   }
   const ctxFails = fails.context || 0;
   if (ctxFails > 0 && ctxFails >= 0.2 * (tot.n || 1)) {

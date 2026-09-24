@@ -42,6 +42,19 @@ export const CROWDS = {
   class: { label: 'Classroom of 30', groups: [{ persona: 'student', count: 30, client: 'browser', link: 'wifi', distanceKm: 0.02 }] },
   mesh: { label: 'LoRa hikers', groups: [{ persona: 'chat', count: 12, client: 'badge', link: 'lora', protocol: 'mesh', distanceKm: 5,
     tweak: { output: 60, prefix: 200, history: false, think: 240, slo: { ttft: 0, tps: 0, e2e: 180 }, patience: 600 } }] },
+  monorepo: { label: '3 agents at 100K tokens', groups: [
+    { persona: 'coder',  count: 3,  client: 'ide',  link: 'lan',  distanceKm: 0,  tweak: { prompt: 6000,  prefix: 12000,  output: 600,  turns: 14,  think: 6 } },
+  ] },
+  swarm: { label: '24-agent swarm', groups: [
+    { persona: 'coder',  count: 24,  client: 'ide',  link: 'lan',  distanceKm: 0,  tweak: { prompt: 300,  prefix: 6000,  output: 120,  turns: 40,  think: 2,  slo: { ttft: 0,  tps: 0,  e2e: 6 },  patience: 60 } },
+  ] },
+  dairy: { label: '120 dairy machines', groups: [
+    { persona: 'home',  count: 60,  client: 'ide',  link: 'wifiweak',  protocol: 'http',  distanceKm: 0.05,  tweak: { burst: true,  slo: { ttft: 0,  tps: 0,  e2e: 20 },  patience: 60 } },
+    { persona: 'home',  count: 60,  client: 'ide',  link: 'wifiweak',  protocol: 'http',  distanceKm: 0.05,  tweak: { burst: true,  slo: { ttft: 0,  tps: 0,  e2e: 20 },  patience: 60 } },
+  ] },
+  robots: { label: '40 warehouse robots', groups: [
+    { persona: 'home',  count: 40,  client: 'ide',  link: 'wifi',  protocol: 'http',  distanceKm: 0.02,  tweak: { prompt: 700,  prefix: 4000,  output: 250,  think: 60,  slo: { ttft: 0,  tps: 0,  e2e: 10 },  patience: 30 } },
+  ] },
 };
 
 export const state = {

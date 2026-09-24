@@ -30,6 +30,7 @@ export function makeServer(eng, idx) {
     kvUsed: 0, kvPeak: 0,
     busy: false, iter: null,
     slots: slotted ? Array.from({ length: eng.maxBatch }, () => ({ req: null, lastUser: -1, lastGroup: -1 })) : null,
+    host: new Map(), hostBytes: 0,
     cache: new Map(), cacheBytes: 0, pinnedBytes: 0,
     stats: { busyS: 0, memS: 0, compS: 0, bytes: 0, flops: 0, tokOut: 0, tokPrefill: 0, tokCached: 0,
       batchTime: 0, blockedSlots: 0, blockedKv: 0, iters: 0, steps: 0 },
@@ -62,6 +63,24 @@ function evict(eng, srv) {
   }
 }
 
+/** Host-RAM prompt cache for slot servers: LRU by bytes. */
+function hostTouch(srv, key) {
+  const e = srv.host.get(key);
+  if (e) { srv.host.delete(key); srv.host.set(key, e); }
+}
+function hostPut(eng, srv, key, tokens) {
+  const old = srv.host.get(key);
+  if (old) { srv.host.delete(key); srv.hostBytes -= old.bytes; }
+  const bytes = kvBytes(eng.fp, tokens);
+  srv.host.set(key, { bytes, tokens });
+  srv.hostBytes += bytes;
+  const cap = eng.rt.hostCacheGB * 1e9;
+  for (const [k, e] of srv.host) {
+    if (srv.hostBytes <= cap) break;
+    srv.host.delete(k); srv.hostBytes -= e.bytes;
+  }
+}
+
 /** Work out how much of the prompt is already cached, and claim a slot. */
 function claim(eng, srv, r) {
   const hitPrefix = r.prefix, hitHistory = r.history;
@@ -69,8 +88,12 @@ function claim(eng, srv, r) {
   if (srv.slotted) {
     const free = srv.slots.filter((s) => !s.req);
     const pick = (eng.rt.prefixCache && (free.find((s) => s.lastUser === r.uid) || free.find((s) => s.lastGroup === r.gi))) || free[0];
-    if (eng.rt.prefixCache && pick.lastGroup === r.gi) cached += hitPrefix;
+    const host = eng.rt.prefixCache && eng.rt.hostCacheGB > 0;
+    // A slot holds its last prompt; a host-RAM cache restores the rest.
+    if (eng.rt.prefixCache && (pick.lastGroup === r.gi || (host && srv.host.has(`p${r.gi}`)))) cached += hitPrefix;
     if (eng.rt.prefixCache && pick.lastUser === r.uid) cached += hitHistory;
+    else if (host && srv.host.has(`u${r.uid}`)) cached += Math.min(srv.host.get(`u${r.uid}`).tokens, hitHistory);
+    if (host) { hostTouch(srv, `p${r.gi}`); hostTouch(srv, `u${r.uid}`); }
     pick.req = r; pick.lastUser = r.uid; pick.lastGroup = r.gi;
     r.slot = pick;
   } else if (eng.rt.prefixCache) {
@@ -193,7 +216,13 @@ export function finish(eng, srv, t1, hooks) {
 function release(eng, srv, r, t, hooks) {
   srv.running.splice(srv.running.indexOf(r), 1);
   srv.kvUsed -= r.kvNeed;
-  if (r.slot) { r.slot.req = null; r.slot = null; }
+  if (r.slot) {
+    r.slot.req = null; r.slot = null;
+    if (eng.rt.prefixCache && eng.rt.hostCacheGB > 0) {
+      hostPut(eng, srv, `p${r.gi}`, r.prefix);
+      if (r.keepsHistory) hostPut(eng, srv, `u${r.uid}`, r.history + r.prompt + r.output);
+    }
+  }
   if (r.prefixEntry && --r.prefixEntry.refs === 0) srv.pinnedBytes -= r.prefixEntry.bytes;
   r.prefixEntry = null;
   if (!srv.slotted && eng.rt.prefixCache && r.keepsHistory) {

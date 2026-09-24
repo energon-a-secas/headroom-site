@@ -16,22 +16,41 @@ import { MISSIONS, scoreMission } from '../js/data/missions.js';
 import { BOXES } from '../js/data/hardware.js';
 import { MODELS, quantsFor } from '../js/data/models.js';
 import { runtimesFor } from '../js/data/runtimes.js';
+import { buildEngine } from '../js/engine/perf.js';
 
-const QUANTS = ['q4', 'mxfp4', 'q8', 'f16'];
 const args = process.argv.slice(2);
 const check = args.includes('--check');
 const only = args.find((a) => !a.startsWith('--'));
 
-/** Every setup worth trying for a mission, cheapest hardware first. */
+// Slot servers start with one fixed layout; the sweep tries the common ones.
+const SLOT_LAYOUTS = [
+  { slots: 4, ctxPerSlot: 16384 }, { slots: 8, ctxPerSlot: 16384 }, { slots: 16, ctxPerSlot: 8192 },
+  { slots: 16, ctxPerSlot: 32768 }, { slots: 32, ctxPerSlot: 8192 }, { slots: 64, ctxPerSlot: 4096 },
+  { slots: 4, ctxPerSlot: 65536 }, { slots: 2, ctxPerSlot: 131072 },
+];
+const KV = ['f16', 'q8', 'q4'];
+
+/**
+ * Every setup worth trying for a mission, cheapest hardware first. Setups
+ * that cannot load (weights or KV do not fit) or fall under the tier floor
+ * are pruned before any simulation runs.
+ */
 export function candidates(m) {
   const out = [];
   for (const b of BOXES.filter((x) => x.status !== 'announced')) {
-    for (const count of [1, 2]) {
-      for (const model of MODELS.filter((x) => !x.hidden && x.tier >= m.minTier - 0.2)) {
-        for (const q of quantsFor(model).filter((x) => QUANTS.includes(x.id))) {
-          for (const rt of runtimesFor(b.platform)) {
-            const overrides = rt.batching === 'slots' ? { slots: 16, ctxPerSlot: 32768 } : {};
-            out.push({ price: b.priceUsd * count, setup: { box: b.id, count, model: model.id, quant: q.id, runtime: rt.id, overrides } });
+    for (const [count, mode] of [[1, 'replica'], [2, 'replica'], ...(b.pairable ? [[2, 'split']] : [])]) {
+      for (const model of MODELS.filter((x) => !x.hidden)) {
+        for (const q of quantsFor(model)) {
+          if (model.tier - q.tierLoss < m.minTier) continue;
+          for (const kv of KV) {
+            for (const rt of runtimesFor(b.platform)) {
+              const layouts = rt.batching === 'slots' ? SLOT_LAYOUTS : [{}];
+              for (const overrides of layouts) {
+                const setup = { box: b.id, count, mode, model: model.id, quant: q.id, kv, runtime: rt.id, overrides };
+                if (!buildEngine(scenarioFor(m, setup)).fit.ok) continue;
+                out.push({ price: b.priceUsd * count, setup });
+              }
+            }
           }
         }
       }
@@ -42,8 +61,8 @@ export function candidates(m) {
 
 export function scenarioFor(m, setup) {
   return {
-    box: { id: setup.box, count: setup.count, mode: 'replica' },
-    model: { id: setup.model, quant: setup.quant, kv: 'f16' },
+    box: { id: setup.box, count: setup.count, mode: setup.mode || 'replica' },
+    model: { id: setup.model, quant: setup.quant, kv: setup.kv || 'f16' },
     runtime: { id: setup.runtime, overrides: setup.overrides || {} },
     groups: m.groups, seed: 7,
   };
@@ -71,7 +90,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const ok = par === m.par;
     if (!ok) bad++;
     const s = best?.setup;
-    console.log(`${ok ? 'ok ' : 'OFF'} ${m.id.padEnd(12)} par ${String(par).padStart(6)} (data ${m.par})  ${s ? `${s.count}x ${s.box} ${s.model} ${s.quant} ${s.runtime}, ${Math.round(best.pass * 100)}% on target` : 'unsolvable'}`);
+    const layout = s?.overrides?.slots ? ` ${s.overrides.slots}x${s.overrides.ctxPerSlot / 1024}K` : '';
+    console.log(`${ok ? 'ok ' : 'OFF'} ${m.id.padEnd(20)} par ${String(par).padStart(6)} (data ${m.par})  ${s ? `${s.count}x ${s.box}${s.mode === 'split' ? ' split' : ''} ${s.model} ${s.quant} kv ${s.kv} ${s.runtime}${layout}, ${Math.round(best.pass * 100)}% on target` : 'unsolvable'}`);
   }
   if (check && bad) { console.error(`${bad} mission par(s) disagree with js/data/missions.js`); process.exit(1); }
 }

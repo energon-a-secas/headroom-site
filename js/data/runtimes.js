@@ -15,6 +15,8 @@
 //               sampling, non-fused kernels); why 32 users are not 32x free
 //   lowPrecision  can run prompt math in FP8/FP4 when the weights and the
 //               hardware allow it; otherwise everything computes at FP16
+//   hostCacheGB a slot server that parks evicted prompts in host RAM and
+//               restores them (llama-server --cache-ram, 8 GiB by default)
 //   platforms   which box platforms it runs on
 //
 // Efficiencies are calibrated against published benchmarks; the Method tab
@@ -25,7 +27,7 @@ export const RUNTIMES = [
     id: 'llamacpp', name: 'llama.cpp server', batching: 'slots',
     slots: 4, ctxPerSlot: 16384, maxBatch: 4,
     bwEff: 0.85, computeEff: 0.5, stepMs: 1, perSeqMs: 0.45,
-    prefixCache: true, chunk: 512, lowPrecision: false,
+    prefixCache: true, hostCacheGB: 8, chunk: 512, lowPrecision: false,
     platforms: ['cuda', 'rocm', 'metal', 'cpu'],
     blurb: 'Runs everywhere, quantized GGUF files, fast for one user. Parallel slots split a fixed context.',
   },
