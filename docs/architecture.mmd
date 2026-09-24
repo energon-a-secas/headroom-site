@@ -1,0 +1,53 @@
+---
+config:
+  theme: base
+  themeVariables:
+    primaryColor: "#0f172a"
+    primaryTextColor: "#e2e8f0"
+    primaryBorderColor: "#0063e5"
+    lineColor: "#38bdf8"
+    secondaryColor: "#1e293b"
+    tertiaryColor: "#1e293b"
+    clusterBkg: "#f0f7ff"
+    clusterBorder: "#bfdbfe"
+    edgeLabelBackground: "#e8f0ff"
+    mainBkg: "#0f172a"
+    nodeBorder: "#0063e5"
+    titleColor: "#1e1b4b"
+    fontFamily: "ui-sans-serif, system-ui, -apple-system, sans-serif"
+    fontSize: "13px"
+---
+flowchart TB
+    User([User]) --> HTML["index.html\nApp shell"]
+
+    subgraph UI["Page (ES modules)"]
+        HTML --> app["app.js\nEntry point"]
+        app --> state["state.js\nScenario + share links"]
+        app --> events["events.js\nDelegated listeners"]
+        app --> render["render.js + ui/*\nLoadout, floor canvas,\nscoreboard, charts"]
+        app --> runner["runner.js\nrAF loop + worker jobs"]
+    end
+
+    subgraph Engine["Engine (pure, no DOM)"]
+        sim["sim.js\nDiscrete-event crowd"]
+        server["server.js\nContinuous batching,\nslots vs paged KV"]
+        perf["perf.js\nRoofline step time,\nMoE routing"]
+        net["network.js\nAirtime queues,\nprotocols"]
+        report["report.js\nVerdict, bottleneck,\ncosts"]
+        batch["batch.js\nRedline + compare"]
+        sim --> server --> perf
+        sim --> net
+        sim --> report
+        batch --> sim
+    end
+
+    subgraph Data["Catalogs"]
+        data["hardware, models, runtimes,\ncrowd, missions, calibration"]
+    end
+
+    runner -->|"advance(t)"| sim
+    runner -->|"postMessage"| worker["worker.js\nWeb Worker"]
+    worker --> batch
+    perf --> data
+    sim --> data
+    state <-->|"headroom:v1"| Storage[("localStorage")]

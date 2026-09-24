@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="Headroom">
+  <link rel="manifest" href="/site.webmanifest">
+  <meta name="neo-mark" content="on">
+  <meta name="neo-repo" content="https://github.com/energon-a-secas/headroom-site">
+  <meta name="neo-updated" content="2026-09-23">
+  <title>Headroom | Local AI Load Simulator</title>
+  <meta name="description" content="Simulate local AI mini PCs under real load: pick a box, a model and a crowd of users, then find the redline before you buy the hardware">
+  <meta property="og:title" content="Headroom | Local AI Load Simulator">
+  <meta property="og:description" content="Put 50 Kindle readers on a DGX Spark and watch where it breaks. A load simulator for local AI boxes">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://headroom.neorgon.com/">
+  <meta property="og:site_name" content="Neorgon">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Headroom | Local AI Load Simulator">
+  <meta name="twitter:description" content="Put 50 Kindle readers on a DGX Spark and watch where it breaks">
+  <meta name="robots" content="index, follow">
+  <link rel="canonical" href="https://headroom.neorgon.com/">
+  <meta property="og:locale" content="en_US">
+  <meta name="theme-color" content="#040714">
+  <meta property="og:image" content="https://headroom.neorgon.com/og-preview.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Headroom: load-test a local AI box before you buy">
+  <meta name="twitter:image" content="https://headroom.neorgon.com/og-preview.jpg">
+  <!-- Fleet design tokens: canonical, do not redeclare locally (docs/references/new-project-context.md, Design) -->
+  <link rel="stylesheet" href="https://cdn.neorgon.org/v1.0.0/styles/base.css">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/viz.css">
+  <!-- Neorgon Header Kit (vendored; ?header=live swaps CSS to CDN). Keep after style.css, the kit owns the header. -->
+  <script>(function(){var m=location.search.match(/[?&]theme=([\w-]+)/)||document.cookie.match(/(?:^|;\s*)neo_theme=([\w-]+)/);if(m&&m[1]!=='default')document.documentElement.dataset.theme=decodeURIComponent(m[1]);})();</script>
+  <link rel="stylesheet" href="css/neorgon-header.css">
+  <link rel="stylesheet" href="css/neorgon-themes.css">
+  <link rel="stylesheet" href="https://cdn.neorgon.org/v1.0.0/header/season.css">
+  <script defer src="js/neorgon-header.js"></script>
+  <!-- Neorgon Footer Kit (vendored). Pins the footer to the viewport floor on short
+       pages and builds the meta bar + back-to-top. See packages/neorgon-ui/footer/README.md.
+       Optional stamps: <meta name="neo-repo"|"neo-version"|"neo-updated"> -->
+  <link rel="stylesheet" href="css/neorgon-footer.css">
+  <script defer src="js/neorgon-footer.js"></script>
+  <!-- Neorgon Beacon Kit (vendored). Bottom-left correction reporter: it
+       carries page context to balise.neorgon.com in a URL fragment and the
+       visitor writes there. No form on this page and no request from it.
+       Opt out per page with <meta name="beacon" content="off">.
+       See packages/neorgon-ui/beacon/README.md. -->
+  <meta name="beacon-site" content="headroom-site">
+  <link rel="stylesheet" href="css/neorgon-beacon.css">
+  <script defer src="js/neorgon-beacon.js"></script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Headroom",
+    "description": "Simulate local AI mini PCs under real load: pick a box, a model and a crowd of users, then find the redline before you buy the hardware",
+    "url": "https://headroom.neorgon.com/",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Any",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "author": { "@type": "Organization", "name": "Neorgon", "url": "https://neorgon.com/" }
+  }
+  </script>
+</head>
+<body>
+
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="header-bar" data-header-mode="app">
+    <div class="header-logo">
+      <a href="./" class="header-title-link">
+        <img src="https://cdn.neorgon.org/v1.0.0/energon-classic-logo.png" class="header-logo-img" alt="">
+        <div class="header-title-wrap">
+          <h1>Headroom</h1>
+          <div class="header-subtitle">Load-test a local AI box before you buy it</div>
+        </div>
+      </a>
+    </div>
+
+    <div class="header-right">
+      <div class="header-actions">
+        <button type="button" class="btn btn--ghost btn--sm" id="shareBtn" data-keep-mobile>Copy link</button>
+        <button type="button" class="btn btn--ghost btn--sm" id="resetAllBtn">Start over</button>
+      </div>
+
+      <a class="header-home" href="https://neorgon.com/" title="neorgon.com" aria-label="Neorgon home">
+        <svg class="nh-hub-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M12 4.4 18.58 8.2 18.58 15.8 12 19.6 5.42 15.8 5.42 8.2Z" fill="currentColor" stroke="none"/>
+          <g class="nh-orbit">
+            <path d="M2.47 17.50 A11.0 11.0 0 0 1 14.85 1.37" fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round"/>
+            <path d="M21.53 6.50 A11.0 11.0 0 0 1 9.15 22.63" fill="none" stroke="currentColor" stroke-width="1.05" stroke-linecap="round"/>
+            <circle cx="21.71" cy="6.84" r="1.25" fill="currentColor"/>
+            <circle cx="2.29" cy="17.16" r="1.25" fill="currentColor"/>
+          </g>
+        </svg>
+      </a>
+    </div>
+  </header>
+
+  <main id="main">
+    <nav class="tabs" role="tablist" aria-label="Views">
+      <button type="button" class="tab" role="tab" id="tab-sandbox" aria-controls="view-sandbox" data-tab="sandbox" aria-selected="true">Sandbox</button>
+      <button type="button" class="tab" role="tab" id="tab-missions" aria-controls="view-missions" data-tab="missions" aria-selected="false" tabindex="-1">Missions</button>
+      <button type="button" class="tab" role="tab" id="tab-compare" aria-controls="view-compare" data-tab="compare" aria-selected="false" tabindex="-1">Compare boxes</button>
+      <button type="button" class="tab" role="tab" id="tab-method" aria-controls="view-method" data-tab="method" aria-selected="false" tabindex="-1">How it works</button>
+    </nav>
+
+    <!-- ── Sandbox ── -->
+    <section class="view" id="view-sandbox" role="tabpanel" aria-labelledby="tab-sandbox">
+      <div class="mission-bar" id="missionBar" hidden></div>
+      <div class="lab">
+        <aside class="loadout" id="loadout" aria-label="Loadout: box, model, runtime and crowd"></aside>
+
+        <div class="stage">
+          <div class="transport" role="toolbar" aria-label="Simulation controls">
+            <button type="button" class="btn btn--primary btn--sm" id="playBtn" aria-pressed="false">Run</button>
+            <div class="seg" role="group" aria-label="Speed" id="speedSeg">
+              <button type="button" data-speed="1">1x</button>
+              <button type="button" data-speed="20">20x</button>
+              <button type="button" data-speed="120">2 min/s</button>
+              <button type="button" data-speed="600">10 min/s</button>
+            </div>
+            <span class="clock" id="clock" aria-label="Simulated time">00:00:00</span>
+            <div class="transport__end">
+              <button type="button" class="btn btn--ghost btn--sm" id="skipBtn" title="Simulate 20 minutes at once">Skip 20 min</button>
+              <button type="button" class="btn btn--ghost btn--sm" id="restartBtn">Restart</button>
+              <button type="button" class="btn btn--secondary btn--sm" id="redlineBtn">Find the redline</button>
+              <a class="btn btn--ghost btn--sm only-narrow" href="#loadout">Change setup</a>
+            </div>
+          </div>
+
+          <div class="floor-wrap">
+            <canvas id="floor" role="img" aria-label="Users around the box, coloured by what they are doing"></canvas>
+            <div class="floor-legend" id="floorLegend"></div>
+          </div>
+
+          <div class="redline-card" id="redlineCard" hidden></div>
+          <div class="charts" id="charts"></div>
+          <div class="blame" id="blame"></div>
+        </div>
+
+        <aside class="score" id="score" aria-label="Scoreboard"></aside>
+      </div>
+    </section>
+
+    <!-- ── Missions ── -->
+    <section class="view" id="view-missions" role="tabpanel" aria-labelledby="tab-missions" hidden>
+      <div class="page">
+        <div class="page__head">
+          <h2 class="page__title">Missions</h2>
+          <p class="page__lead">Each mission fixes the crowd and the goal. You pick the box, the model, the precision and the server. One star for serving everyone well, two for staying on budget, three for not buying more box than the job needs.</p>
+        </div>
+        <div id="missions"></div>
+      </div>
+    </section>
+
+    <!-- ── Compare ── -->
+    <section class="view" id="view-compare" role="tabpanel" aria-labelledby="tab-compare" hidden>
+      <div class="page">
+        <div class="page__head">
+          <h2 class="page__title">Compare boxes</h2>
+          <p class="page__lead" id="compareLead">The crowd, model and runtime from the Sandbox, run on every box in the catalog.</p>
+        </div>
+        <div class="toolbar">
+          <button type="button" class="btn btn--primary btn--sm" id="compareBtn">Run the comparison</button>
+          <label class="check"><input type="checkbox" id="compareRedline" checked> Find each box's redline (slower)</label>
+          <label class="check"><input type="checkbox" id="compareAnnounced"> Include announced boxes</label>
+        </div>
+        <div id="compare"></div>
+      </div>
+    </section>
+
+    <!-- ── Method ── -->
+    <section class="view" id="view-method" role="tabpanel" aria-labelledby="tab-method" hidden>
+      <div class="page prose">
+        <div class="page__head">
+          <h2 class="page__title">How Headroom works</h2>
+          <p class="page__lead">A small, honest model of what happens between someone pressing send and an answer appearing on their screen. Every number it uses is on this page, and every one of them is editable in the Sandbox.</p>
+        </div>
+
+        <h3>The loop every user runs</h3>
+        <p>Each simulated person is a closed loop: ask, wait, read the answer, think, ask again. A request crosses the network, waits in the server's queue, has its prompt read (prefill), then generates its answer one token at a time (decode), crosses the network back, and is drawn on the device. Because users wait for answers before asking again, a slow box slows its own crowd down, which is how real households and offices behave. It is also why the question worth asking is not "how fast is it" but "how many people before the answers get bad".</p>
+
+        <h3>One rule for speed</h3>
+        <p>The server works in iterations. Every iteration reads the model weights it needs once, reads the conversation memory (KV cache) of every sequence in the batch, and does two operations per active parameter per token, plus attention. Its length is the larger of two times, plus a fixed overhead:</p>
+        <p class="formula">iteration time = max( bytes read / memory bandwidth , FLOPs / tensor throughput ) + overhead</p>
+        <ul>
+          <li><strong>One user</strong> generates at roughly bandwidth divided by model size. That is why a 70B model at 4-bit crawls at about 5 tokens a second on a 273 GB/s box however many TFLOPS it has.</li>
+          <li><strong>More users</strong> share the same weight read, so total throughput climbs with batch size until the iteration turns compute-bound or the KV reads take over. Each user still slows down a little.</li>
+          <li><strong>Long prompts</strong> are compute-bound. Reading a 30,000-token coding context is where tensor throughput, and prefix caching, earn their keep.</li>
+          <li><strong>Mixture-of-experts</strong> models read only the experts a token routes to. With one user that is a small slice; with many users routing differently, more experts wake up every iteration and the advantage shrinks. Measured on a DGX Spark, a dense 7B model gains about 20 times total throughput going from 1 to 32 users; gpt-oss-120b gains about 6 times. Routing is skewed toward popular experts, so Headroom treats n users as n<sup>0.65</sup> independent routers, fitted to those measurements.</li>
+          <li><strong>Mixture-of-experts prompts</strong> split into many small matrix multiplies, one per expert, which run far below peak. That is why a Strix Halo box reads a gpt-oss-120b prompt at about a quarter of a DGX Spark's speed while generating almost as fast.</li>
+        </ul>
+
+        <h3>Memory decides concurrency</h3>
+        <p>After the weights, the rest of usable memory holds KV cache: every token of every live conversation costs a fixed number of bytes that depends on the model's layers and attention heads. Two server designs spend it differently.</p>
+        <ul>
+          <li><strong>Slots</strong> (llama.cpp, Ollama, MLX): a fixed number of parallel slots, each with its own preallocated context. Extra users queue for a slot. A request longer than a slot's context fails, which is the classic "Ollama cannot hold my coding agent's system prompt" surprise.</li>
+          <li><strong>Paged</strong> (vLLM, SGLang, TensorRT-LLM): one shared pool handed out in blocks. Concurrency is limited by memory, not by a slot count, and a shared system prompt is stored once.</li>
+        </ul>
+
+        <h3>The network is mostly about packets, not bandwidth</h3>
+        <p>Text is tiny. What hurts is round trips (distance, handshakes, radio scheduling) and, on shared radios, per-packet airtime: a Wi-Fi or Bluetooth frame costs the same preamble and acknowledgement whether it carries one token or a kilobyte. Streaming one OpenAI-style event per token to 50 clients multiplies that cost. On LoRa it is fatal: a single 200-byte packet takes more than a second of airtime, and European rules cap transmit time at 10%. Headroom models each shared radio as one queue that every client's traffic waits in.</p>
+
+        <h3>Verdicts and the redline</h3>
+        <p>Each persona has its own idea of a good answer: a chat user wants text within 2 seconds at reading speed, a Kindle reader wants the whole answer within 20 seconds, a voice assistant wants its first word within 1.2 seconds. A run is <em>right-sized</em> when at least 95% of answers meet their target and the box is between 25% and 85% busy. Under 25% busy is <em>overkill</em>: it works, but the money is idle. The redline search doubles the crowd until answers fail, then bisects to the largest crowd that still passes.</p>
+
+        <h3>Where the numbers come from</h3>
+        <p>Model shapes come from each model's published configuration. Hardware figures are vendor specifications, marked as estimates where the vendor does not publish them. Runtime efficiencies are calibrated against published single-user benchmarks, shown below next to what the model predicts.</p>
+        <div id="calibration"></div>
+        <div id="catalog"></div>
+
+        <h3>What it leaves out</h3>
+        <ul>
+          <li>Speculative decoding, which can lift single-user speed 1.5 to 2.5 times on some models.</li>
+          <li>Thermal throttling, power-limit modes and background load on the box.</li>
+          <li>Images, audio and video inputs; tool execution time beyond each persona's think time.</li>
+          <li>Answer quality, beyond a coarse capability tier per model and quantization.</li>
+          <li>Software drift: the same box and model moved 50% or more within months of 2025 and 2026 as llama.cpp, vLLM and drivers improved. Every calibration point below carries its build or date.</li>
+        </ul>
+        <p>Against the 30 published measurements below, the model's typical error is about 11%, with a few older or unusual points off by up to 2.5 times. Treat results as a well-argued estimate, and trust them most on the question of what runs out first.</p>
+      </div>
+    </section>
+  </main>
+
+  <div class="modal" id="missionModal" hidden>
+    <div class="modal__backdrop" data-modal-close tabindex="-1" aria-hidden="true"></div>
+    <div class="modal__dialog" role="dialog" aria-modal="true" aria-labelledby="missionModalTitle" tabindex="-1">
+      <header class="modal__header">
+        <h2 id="missionModalTitle">Mission result</h2>
+        <button type="button" class="btn btn--ghost btn--icon" data-modal-close aria-label="Close dialog">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+      </header>
+      <div class="modal__body" id="missionModalBody"></div>
+      <footer class="modal__footer">
+        <button type="button" class="btn btn--ghost" data-modal-close>Keep tuning</button>
+        <button type="button" class="btn btn--primary" id="missionNextBtn">Back to missions</button>
+      </footer>
+    </div>
+  </div>
+
+  <footer class="neo-footer" data-footer-mode="app">
+    Runs entirely in your browser. Estimates from published specs, not measurements of your box.
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
