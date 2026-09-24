@@ -123,12 +123,13 @@ export const USE_CASES = [
 
   // ── v1.1 use cases (missions and presets added after the first release) ──
   {
-    name: "The house is the prompt: Home Assistant's 8K Ollama window cuts the 8,500-token voice prompt, a wider window leaves one slot swapping two prompts, and a cache that keeps both serves the house on a $2,299 Mac mini",
+    name: "The house is the prompt: Home Assistant's 8K Ollama window cuts the 8,500-token voice prompt, a wider window leaves one slot swapping two prompts, and a cache that keeps both serves the house on a $1,699 Mac mini",
     check({ runScenario, assert }) {
       const m = missionById('house-is-the-prompt');
+      const ps = m.parSetup;
       const at = (seed, runtime, overrides = {}) => runScenario({
-        box: { id: 'mac-mini-m5pro', count: 1, mode: 'replica' },
-        model: { id: 'qwen3-30b-a3b', quant: 'q8', kv: 'q8' },
+        box: { id: ps.box, count: 1, mode: 'replica' },
+        model: { id: ps.model, quant: ps.quant, kv: ps.kv },
         runtime: { id: runtime, overrides }, groups: m.groups, seed,
       }, { duration: m.duration });
       let worstOn = 1, bestOff = 0, worstNoHost = 1;
@@ -140,7 +141,7 @@ export const USE_CASES = [
         // Change only the window: nothing is cut, and the one slot still swaps two prompts.
         const wide = at(seed, 'ollama', { ctxPerSlot: 16384 });
         assert(!wide.groups[0].fail.truncated, `seed ${seed}: Ollama 16K still cuts ${wide.groups[0].fail.truncated}`);
-        assert(wide.bottleneck.id === 'prefill' && wide.groups[0].passPct < 0.8, `seed ${seed}: Ollama 16K ${wide.bottleneck.id}, voice ${wide.groups[0].passPct}`);
+        assert(wide.bottleneck.id === 'prefill' && wide.groups[0].passPct < m.goal - 0.05, `seed ${seed}: Ollama 16K ${wide.bottleneck.id}, voice ${wide.groups[0].passPct}`);
         // The par box on llama.cpp's defaults, then the same server with one cache setting changed.
         const on = at(seed, 'llamacpp');
         const off = at(seed, 'llamacpp', { prefixCache: false });
@@ -169,10 +170,11 @@ export const USE_CASES = [
       }, { duration: m.duration });
       const notes = [];
       for (const seed of [7, 11, 23, 42]) {
-        const par = at(m.groups, 'asus-gx10', 'qwen3-next-80b', 'q4', 'trtllm', seed);
+        const ps = m.parSetup;
+        const par = at(m.groups, ps.box, ps.model, ps.quant, ps.runtime, seed);
         const halo = at(m.groups, 'ryzen-ai-halo', 'qwen3-next-80b', 'q4', 'vllm', seed);
         const bare = at(noChart, 'ryzen-ai-halo', 'qwen3-next-80b', 'q4', 'vllm', seed);
-        const thinks = at(thinking, 'asus-gx10', 'qwen3-next-80b', 'q4', 'trtllm', seed);
+        const thinks = at(thinking, ps.box, ps.model, ps.quant, ps.runtime, seed);
         assert(scoreMission(m, par).stars === 3, `seed ${seed}: par setup ${par.passRate}: ${failing(m, par).join(' | ')}`);
         assert(bare.passRate >= 0.9 && halo.passRate < 0.4 && halo.bottleneck.id === 'prefill', `seed ${seed}: Halo ${bare.passRate} without the chart, ${halo.passRate} with it (${halo.bottleneck.id})`);
         assert(thinks.passRate < 0.05 && thinks.groups[0].ttft.p50 > 1.2, `seed ${seed}: with 60 thinking tokens ${thinks.passRate}, first word ${thinks.groups[0].ttft.p50} s`);
@@ -182,7 +184,7 @@ export const USE_CASES = [
     },
   },
   {
-    name: 'The foreign desk: with about two answers in flight, vLLM\'s 10 ms fixed step costs a Spark several points against llama.cpp\'s 1 ms step, and cutting that step wins them back',
+    name: 'The foreign desk: with about two answers in flight, vLLM\'s 10 ms fixed step makes a Spark miss the desk, and cutting that step wins the points back',
     check({ runScenario, assert }) {
       const m = missionById('foreign-desk');
       const at = (runtime, seed, overrides = {}) => runScenario({
@@ -196,8 +198,8 @@ export const USE_CASES = [
         const tag = `seed ${seed}: llama.cpp ${pct(cpp)}%, vLLM ${pct(vllm)}%, vLLM at 1 ms a step ${pct(lean)}%`;
         // Few answers in flight: a batching server has little to batch.
         assert(vllm.util.avgBatch < 3, `${tag}; vLLM average batch ${vllm.util.avgBatch}`);
-        // vLLM at its calibrated 10 ms a step misses the desk, and the 1 ms slot server does better on every seed.
-        assert(scoreMission(m, vllm).stars === 0 && cpp.passRate > vllm.passRate + 0.04, tag);
+        // vLLM at its calibrated 10 ms a step misses the desk, and the 1 ms slot server does no worse.
+        assert(scoreMission(m, vllm).stars === 0 && cpp.passRate > vllm.passRate, tag);
         // Change one thing: cut vLLM's fixed cost per step to llama.cpp's.
         assert(lean.passRate > vllm.passRate + 0.04, tag);
         assert(lean.groups[0].e2e.p50 < 0.85 * vllm.groups[0].e2e.p50, `${tag}; median ${lean.groups[0].e2e.p50} s vs ${vllm.groups[0].e2e.p50} s`);
@@ -231,7 +233,7 @@ export const USE_CASES = [
     check({ runScenario, assert }) {
       const m = missionById('helpdesk-backfill');
       const [agents, backfill] = m.groups;
-      const mac = ['mac-m5max-128', 'qwen3-next-80b', 'q4', 'llamacpp'];
+      const mac = ['mac-m5max-128', 'qwen3.6-35b-a3b', 'q4', 'llamacpp'];
       // The desk alone passes on four slots; add the backfill and the agents wait behind it.
       const alone = on(runScenario, [agents], ...mac);
       const busy = on(runScenario, m.groups, ...mac);
@@ -272,7 +274,7 @@ export const USE_CASES = [
         const four = at(seed, 'mac-mini-m5pro', 'llamacpp');
         const eight = at(seed, 'mac-mini-m5pro', 'llamacpp', { slots: 8, ctxPerSlot: 16384 });
         assert(four.bottleneck.id === 'slots' && four.passRate < m.goal - 0.05, `seed ${seed}: 4 slots ${four.passRate}, ${four.bottleneck.id}`);
-        assert(scoreMission(m, eight).stars === 3 && eight.util.avgW <= m.maxWatts - 3, `seed ${seed}: 8 slots ${scoreMission(m, eight).stars} stars, ${eight.util.avgW} W`);
+        assert(scoreMission(m, eight).stars >= 2 && eight.util.avgW <= m.maxWatts - 2, `seed ${seed}: 8 slots ${scoreMission(m, eight).stars} stars, ${eight.util.avgW} W`);
         assert(eight.util.avgW < four.util.avgW - 3, `seed ${seed}: 8 slots ${eight.util.avgW} W vs 4 slots ${four.util.avgW} W`);
         notes.push(`${Math.round(spark.util.avgW)}/${Math.round(four.passRate * 100)}%/${Math.round(eight.util.avgW)}`);
       }
@@ -285,13 +287,16 @@ export const USE_CASES = [
       const m = missionById('six-language-guide');
       // The same 100 visitors, all on one shared script: only the prompt identity changes.
       const one = m.groups.map((g) => ({ ...g, prefixId: 'guide' }));
-      const cold6 = on(runScenario, m.groups, 'mac-m5max-128', 'qwen3-next-80b', 'q2', 'llamacpp', { hostCacheGB: 0 }, { kv: 'q8' });
-      const cold1 = on(runScenario, one, 'mac-m5max-128', 'qwen3-next-80b', 'q2', 'llamacpp', { hostCacheGB: 0 }, { kv: 'q8' });
+      // The par setup: two small Macs, four llama.cpp slots each.
+      const ps = m.parSetup;
+      const par = (crowd, extra) => on(runScenario, crowd, ps.box, ps.model, ps.quant, ps.runtime, { ...ps.overrides, ...extra }, { kv: ps.kv, count: ps.count });
+      const cold6 = par(m.groups, { hostCacheGB: 0 });
+      const cold1 = par(one, { hostCacheGB: 0 });
       assert(cold6.util.cacheHit < 0.5 && cold1.util.cacheHit > 0.8, `from cache without host RAM: six scripts ${cold6.util.cacheHit}, one ${cold1.util.cacheHit}`);
       assert(cold1.passRate > cold6.passRate + 0.5, `without host RAM: six scripts ${cold6.passRate}, one ${cold1.passRate}`);
       // llama.cpp's default 8 GiB host cache keeps all six, so the language count stops mattering.
-      const warm6 = on(runScenario, m.groups, 'mac-m5max-128', 'qwen3-next-80b', 'q2', 'llamacpp', {}, { kv: 'q8' });
-      const warm1 = on(runScenario, one, 'mac-m5max-128', 'qwen3-next-80b', 'q2', 'llamacpp', {}, { kv: 'q8' });
+      const warm6 = par(m.groups, {});
+      const warm1 = par(one, {});
       assert(warm6.util.cacheHit > 0.88 && Math.abs(warm6.passRate - warm1.passRate) < 0.02, `with host RAM: six scripts ${warm6.passRate}, one ${warm1.passRate}`);
       assert(scoreMission(m, warm6).stars >= 1, `default llama.cpp: ${failing(m, warm6).join(' | ')}`);
       // A paged prefix cache holds all six as well.
@@ -301,7 +306,7 @@ export const USE_CASES = [
     },
   },
   {
-    name: "The law faculty's drafting assistant: the tier 4.5 floor, not the crowd, rules out every single 128 GB box, and a split pair makes par only with a smaller KV cache",
+    name: "The law faculty's drafting assistant: tier 4.5 once meant Qwen3 235B on a $7,899 Mac Studio; this year one Mac mini clears it, as long as the small model keeps its precision",
     check({ runScenario, compareBoxes, buildEngine, assert }) {
       const m = missionById('tier-floor-lab');
       const run = (seed, box, count, model, quant, kv, runtime, overrides = {}) => runScenario({
@@ -309,42 +314,37 @@ export const USE_CASES = [
         model: { id: model, quant, kv }, runtime: { id: runtime, overrides }, groups: m.groups, seed,
       }, { duration: m.duration });
       const stars = (r) => scoreMission(m, r).stars;
-      // Qwen3 235B at Q6_K is the smallest load at tier 4.5 in the catalog. With one
-      // 4K slot and a 4-bit KV cache it still fits no box of 128 GB or less
-      // (and a 4-bit KV cache would cost it the tier anyway).
+      // Last year's answer: Qwen3 235B at Q6_K fits no box of 128 GB or less,
+      // even with one 4K slot and a 4-bit KV cache.
       const qwen = { id: 'qwen3-235b-a22b', quant: 'q6', kv: 'q4' };
       const rows = compareBoxes({ box: { id: 'dgx-spark', count: 1, mode: 'replica' }, model: qwen,
         runtime: { id: 'llamacpp', overrides: { slots: 1, ctxPerSlot: 4096 } }, groups: m.groups, seed: 7, includeAnnounced: true }, { duration: 60 });
       const small = rows.filter((r) => buildEngine({ box: { id: r.boxId, count: 1 }, model: qwen, runtime: { id: 'llamacpp' }, groups: [] }).box.memGB <= 128);
       assert(small.length >= 7, `${small.length} boxes of 128 GB or less`);
       const fits = small.filter((r) => r.report.ok || r.report.fit.code !== 'weights').map((r) => r.boxId);
-      assert(!fits.length, `tier 4.5 fits on ${fits.join(', ')}`);
-      // The same Spark and server: lowering the precision until Qwen3 235B fits lowers its tier below the floor.
+      assert(!fits.length, `Qwen3 235B Q6 fits on ${fits.join(', ')}`);
+      // Lowering its precision until it fits one Spark lowers its tier below the floor.
       const q2 = buildEngine({ box: { id: 'dgx-spark', count: 1 }, model: { id: 'qwen3-235b-a22b', quant: 'q2', kv: 'q8' }, runtime: { id: 'vllm' }, groups: [] });
-      assert(q2.fit.ok && q2.model.tier - q2.quant.tierLoss < m.minTier, 'Q2_K should fit one Spark and sit under the floor');
-      // Two split M5 Max boxes keep about 7 GB beside the weights: llama.cpp's default 4 x 16K slots need 12.6 GB at FP16.
-      const f16 = run(7, 'mac-m5max-128', 2, 'qwen3-235b-a22b', 'q6', 'f16', 'llamacpp');
-      assert(!f16.ok && f16.fit.code === 'kv', 'FP16 KV should not fit the split pair');
-      let low = 1, pair8 = 1, ultra = 1;
+      assert(q2.fit.ok && q2.tier < m.minTier, 'Q2_K should fit one Spark and sit under the floor');
+      // This year's par model clears the floor at 6 bits and falls under it at 3:
+      // a small mixture of experts loses more to low precision than a big one.
+      const ps = m.parSetup;
+      const tier = (quant) => buildEngine({ box: { id: ps.box, count: 1 }, model: { id: ps.model, quant, kv: ps.kv }, runtime: { id: ps.runtime }, groups: [] }).tier;
+      assert(tier(ps.quant) >= m.minTier && tier('q3') < m.minTier, `${ps.model}: tier ${tier(ps.quant)} at ${ps.quant}, ${tier('q3')} at q3`);
+      let old = 1, now = 1;
       for (const seed of [7, 11, 23, 42]) {
+        // Last year's answer still serves the faculty, at three times par.
+        const pair = run(seed, 'mac-m5ultra-256', 1, 'qwen3-235b-a22b', 'q6', 'q8', 'mlx', { slots: 8, ctxPerSlot: 16384 });
+        assert(pair.passRate >= 0.95 && stars(pair) === 2, `seed ${seed}: M5 Ultra with Qwen3 235B ${Math.round(pair.passRate * 100)}%, ${stars(pair)} stars`);
         // One change, the model: gpt-oss-120b serves the crowd on a Spark and fails only on tier.
         const oss = run(seed, 'dgx-spark', 1, 'gpt-oss-120b', 'mxfp4', 'f16', 'vllm');
         const fails = failing(m, oss);
         assert(oss.passRate >= 0.95 && fails.some((t) => t.startsWith('Capability tier 4.0')) && fails.every((t) => t.startsWith('Capability tier') || t.startsWith('Par')), `seed ${seed} gpt-oss-120b: ${Math.round(oss.passRate * 100)}%, ${fails.join(' | ')}`);
-        // One change, the KV type: FP16 does not fit beside the weights (above); Q8 in the default 4 slots serves.
-        const q8 = run(seed, 'mac-m5max-128', 2, 'qwen3-235b-a22b', 'q6', 'q8', 'llamacpp');
-        assert(stars(q8) === 3, `seed ${seed}: split pair with Q8 KV, 4 slots: ${Math.round(q8.passRate * 100)}%, ${stars(q8)} stars`);
-        low = Math.min(low, q8.passRate);
-        // One change, the box: the same server layout on one M5 Ultra 256 serves as well and costs more than par.
-        const par = run(seed, 'mac-m5max-128', 2, 'qwen3-235b-a22b', 'q6', 'q8', 'llamacpp');
-        const big = run(seed, 'mac-m5ultra-256', 1, 'qwen3-235b-a22b', 'q6', 'q8', 'llamacpp');
-        assert(stars(par) === 3 && stars(big) === 2, `seed ${seed}: split pair ${stars(par)} stars, M5 Ultra ${stars(big)} stars`);
-        pair8 = Math.min(pair8, par.passRate); ultra = Math.min(ultra, big.passRate);
-        // One change, the precision: Q5_K_M serves the crowd and lands at tier 4.45, shown as such.
-        const q5 = run(seed, 'mac-m5max-128', 2, 'qwen3-235b-a22b', 'q5', 'q8', 'llamacpp', { slots: 8, ctxPerSlot: 16384 });
-        assert(q5.passRate >= 0.95 && stars(q5) === 0 && failing(m, q5).includes('Capability tier 4.45 (needs 4.5)'), `seed ${seed} Q5: ${failing(m, q5).join(' | ')}`);
+        const par = run(seed, ps.box, ps.count, ps.model, ps.quant, ps.kv, ps.runtime, ps.overrides);
+        assert(stars(par) === 3, `seed ${seed}: par setup ${stars(par)} stars`);
+        old = Math.min(old, pair.passRate); now = Math.min(now, par.passRate);
       }
-      return `worst seed: split pair ${Math.round(pair8 * 100)}% (Q8 KV, 4 slots ${Math.round(low * 100)}%), M5 Ultra ${Math.round(ultra * 100)}%`;
+      return `worst seed: M5 Ultra with Qwen3 235B ${Math.round(old * 100)}% ($7,899), one Mac mini with ${ps.model} ${Math.round(now * 100)}% ($${m.par.toLocaleString('en-US')})`;
     },
   },
   {

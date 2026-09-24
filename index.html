@@ -228,6 +228,7 @@
           <li><strong>Long prompts</strong> are compute-bound. Reading a 30,000-token coding context is where tensor throughput, and prefix caching, earn their keep.</li>
           <li><strong>Mixture-of-experts</strong> models read only the experts a token routes to. With one user that is a small slice; with many users routing differently, more experts wake up every iteration and the advantage shrinks. Measured on a DGX Spark, a dense 7B model gains about 20 times total throughput going from 1 to 32 users; gpt-oss-120b gains about 6 times. Routing is skewed toward popular experts, so Headroom treats n users as n<sup>0.65</sup> independent routers, fitted to those measurements.</li>
           <li><strong>Mixture-of-experts prompts</strong> split into many small matrix multiplies, one per expert, which run far below peak. That is why a Strix Halo box reads a gpt-oss-120b prompt at about a quarter of a DGX Spark's speed while generating almost as fast.</li>
+          <li><strong>Many small experts cost time to launch.</strong> llama.cpp and MLX start one kernel per expert per layer, and each start has a fixed cost that no bandwidth figure shows. A model that wakes ten of 512 experts in 48 layers, like Qwen3-Next, generates at about half the speed its size suggests; vLLM-style fused kernels mostly avoid it.</li>
         </ul>
 
         <h3>What comes before the first word</h3>

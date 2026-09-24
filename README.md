@@ -49,7 +49,8 @@ Headroom tells you whether a local AI box will serve your people before you pay 
 - **Two server designs** -- llama.cpp slots sharing one context pool, Ollama's single slot that truncates, vLLM, SGLang and TensorRT-LLM paged KV with prefix caching
 - **Two ways to pair boxes** -- tensor parallel (vLLM, SGLang, TensorRT-LLM, MLX) speeds up generation; llama.cpp's layer split over RPC adds memory, not speed
 - **Honest verdicts** -- headroom is judged on how close the slowest answers run to their limits, so a background batch or a busy batching server does not read as tight
-- **Calibrated, and shows its work** -- published benchmarks next to the model's predictions, typical error about 11%
+- **Current models** -- the September 2026 generation (Qwen3.6, Gemma 4, GLM-4.7, Nemotron 3, MiniMax-M2.7) beside gpt-oss, Qwen3 and Llama, with capability tiers anchored to one public benchmark
+- **Calibrated, and shows its work** -- 82 published measurements next to the model's predictions, typical error about 11%, including the per-expert cost that makes many-expert models slower than their size suggests
 - **Tested** -- `make test` pins every lesson the simulator teaches as a use case, in Node with no dependencies
 - **Costs** -- electricity, amortization and payback against the same tokens from a cloud API
 - **Shareable** -- one link reproduces the exact scenario; everything runs in the browser

@@ -17,7 +17,7 @@ import { MISSIONS, scoreMission } from '../js/data/missions.js';
 import { BOXES } from '../js/data/hardware.js';
 import { MODELS, KV_DTYPES, quantsFor } from '../js/data/models.js';
 import { runtimesFor } from '../js/data/runtimes.js';
-import { buildEngine } from '../js/engine/perf.js';
+import { buildEngine, tierOf } from '../js/engine/perf.js';
 
 const args = process.argv.slice(2);
 const check = args.includes('--check');
@@ -42,9 +42,9 @@ export function candidates(m) {
     for (const [count, mode] of [[1, 'replica'], [2, 'replica'], ...(b.pairable ? [[2, 'split']] : [])]) {
       for (const model of MODELS.filter((x) => !x.hidden)) {
         for (const q of quantsFor(model)) {
-          if (model.tier - q.tierLoss < m.minTier) continue;
+          if (tierOf(model, q) < m.minTier) continue;
           for (const kv of KV) {
-            if (model.tier - q.tierLoss - KV_DTYPES.find((k) => k.id === kv).tierLoss < m.minTier) continue;
+            if (tierOf(model, q, KV_DTYPES.find((k) => k.id === kv)) < m.minTier) continue;
             for (const rt of runtimesFor(b.platform)) {
               const layouts = rt.batching === 'slots' ? SLOT_LAYOUTS : [{}];
               for (const overrides of layouts) {

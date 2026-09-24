@@ -48,6 +48,11 @@ export function footprint(model, quant, kv) {
     weightBytes, sharedRead, expertBytes,
     kvFull, kvSlide, window: model.attn.window || 0,
     stateBytes: (model.stateMB || 0) * 1e6,
+    // Linear-attention and Mamba layers read prompts through recurrent
+    // kernels that run far below peak; fitted as extra work per prompt token
+    // in proportion to the state they carry.
+    linFlops: LIN_K * (model.stateMB || 0) * 1e6 / 2,
+    moeLayers: moe ? (moe.layers || model.layers) : 0,
     flopsPerToken: 2 * model.activeB * G,
     flopsExpert: moe ? 2 * Math.max(0, model.activeB - sharedB) * G : 0,
     attnFull: model.attn.full * attnPerCtx,
@@ -55,6 +60,16 @@ export function footprint(model, quant, kv) {
     hiddenBytes: model.qHeads * model.headDim * 2,
     layers: model.layers,
   };
+}
+
+/**
+ * Capability tier after quantization. Small models lose more to low-bit
+ * weights than big ones, so a quant's loss is scaled by active parameters:
+ * as listed at 10B active and above, up to twice that for the smallest.
+ */
+export function tierOf(model, quant, kv) {
+  const scale = Math.min(2, Math.max(1, Math.sqrt(10 / model.activeB)));
+  return Math.max(0, model.tier - quant.tierLoss * scale - (kv?.tierLoss || 0));
 }
 
 /** KV bytes held by one sequence at a given context length. */
@@ -72,12 +87,20 @@ export function attnFlops(fp, ctx) {
 // decoding on DGX Spark (gpt-oss-20b, gpt-oss-120b, Qwen3-30B-A3B at 1, 8, 32).
 const ROUTING_SKEW = 0.65;
 
+// Extra prompt work per unit of recurrent state, fitted to Qwen3.6 35B-A3B
+// and Qwen3.5 122B-A10B on Strix Halo and Qwen3-Next on an M5 Max.
+const LIN_K = 400;
+
+/** Share of all experts an iteration of `n` tokens wakes. */
+function touchedShare(moe, n) {
+  return 1 - Math.pow(1 - moe.topK / moe.experts, Math.pow(Math.max(1, n), ROUTING_SKEW));
+}
+
 /** Weight bytes read in an iteration that processes `n` tokens. */
 export function weightRead(fp, n) {
   const moe = fp.model.moe;
   if (!moe) return fp.sharedRead;
-  const touched = 1 - Math.pow(1 - moe.topK / moe.experts, Math.pow(Math.max(1, n), ROUTING_SKEW));
-  return fp.sharedRead + fp.expertBytes * touched;
+  return fp.sharedRead + fp.expertBytes * touchedShare(moe, n);
 }
 
 /**
@@ -160,18 +183,24 @@ export function buildEngine(sc) {
   // models that launch floor, not bandwidth, sets the pace.
   const stepMul = box.eff.step ?? 1;
   const launchS = fp.layers * (model.moe ? 60 : 15) * 1e-6 * stepMul;
+  // Every expert an iteration wakes is its own small kernel in llama.cpp and
+  // MLX, with a fixed cost the roofline misses; fused MoE kernels (vLLM,
+  // SGLang, TensorRT-LLM) mostly avoid it. On ROCm the MXFP4 path is fused
+  // and the K-quant path is not.
+  const us = quant.id === 'mxfp4' && box.eff.expertUsFp4 !== undefined ? box.eff.expertUsFp4 : (box.eff.expertUs ?? 4);
+  const expertS = model.moe ? us * 1e-6 * stepMul * (rt.moeScale ?? 1) : 0;
 
   return {
     box, model, quant, kv, rt, fp, dtype,
     servers, split, splitMode, count,
-    bw, flops, launchS, moeM0: (box.eff.moeM0 ?? 16) * (rt.moeScale ?? 1),
+    bw, flops, launchS, expertS, moeM0: (box.eff.moeM0 ?? 16) * (rt.moeScale ?? 1),
     peakBw: box.bwGBs * G * split, peakFlops: rate * 1e12 * split,
     stepS: (rt.stepMs / 1000) * stepMul + commFixed,
     perSeqS: (rt.perSeqMs / 1000) * stepMul,
     commPerTok,
     maxBatch, slotCtx, ctxCap, pooled, chunk: rt.chunk || 512,
     kvPool, freeBytes: free, overhead, usable, fit,
-    tier: Math.max(0, model.tier - quant.tierLoss - (kv.tierLoss || 0)),
+    tier: tierOf(model, quant, kv),
     idleW: box.idleW * count, loadW: box.loadW * count,
     priceUsd: box.priceUsd * count,
   };
@@ -200,7 +229,11 @@ export function stepTime(eng, nDecode, kvRead, attn, prefillTok = 0, prefillAttn
     const eff = m / (m + eng.moeM0);
     tComp += (fp.flopsExpert * prefillTok * (1 / eff - 1)) / eng.flops;
   }
-  const t = Math.max(tMem, tComp, eng.launchS) + eng.stepS + eng.perSeqS * nDecode + eng.commPerTok * n;
+  if (prefillTok > 0) tComp += (fp.linFlops * prefillTok) / eng.flops;
+  // Generating tokens pay it per step; a prompt chunk gives each expert
+  // enough rows that the launch hides behind the math.
+  const experts = moe && eng.expertS && nDecode > 0 ? fp.moeLayers * moe.experts * touchedShare(moe, nDecode) * eng.expertS : 0;
+  const t = Math.max(tMem, tComp, eng.launchS) + eng.stepS + eng.perSeqS * nDecode + eng.commPerTok * n + experts;
   return { t, tMem, tComp, bytes, flops };
 }
 

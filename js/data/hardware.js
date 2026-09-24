@@ -17,6 +17,11 @@
 //   eff.moeM0   how badly small per-expert matrix multiplies run during prompt
 //               processing: efficiency is m / (m + moeM0) for m tokens per expert
 //               (scaled by the runtime's moeScale)
+//   eff.expertUs  fixed microseconds per expert an iteration wakes, per layer,
+//               for servers that run each expert as its own kernel (llama.cpp,
+//               MLX): about 4 on CUDA, 10 on Metal, 35 for ROCm K-quants
+//               (expertUsFp4: ROCm's fused MXFP4 path). Fitted to measured
+//               decode of Qwen3-Next, Qwen3.5/3.6 and gpt-oss (calibration.js)
 //   lowPrecision  tensor precisions the serving stacks actually run fast on this
 //               chip. Stock vLLM runs MXFP4 on GB10 through a BF16 fallback, so
 //               no Blackwell box here lists fp4 until that changes.
@@ -56,7 +61,7 @@ export const BOXES = [
     platform: 'rocm', status: 'shipping', priceUsd: 3999, priceAsOf: ASOF,
     priceNote: 'AMD list $3,999 since July 2026; retailers charge $4,700 to $5,000. On Windows the GPU gets at most 96 GB; these numbers assume Linux.',
     memGB: 128, usableGB: 116, bwGBs: 256, tflops: { fp16: 59, fp8: 59, fp4: 59 },
-    eff: { bw: 1.0, compute: 0.68, step: 1, moeM0: 50 }, idleW: 18, loadW: 160,
+    eff: { bw: 1.0, compute: 0.68, step: 1, moeM0: 50, expertUs: 35, expertUsFp4: 4 }, idleW: 18, loadW: 160,
     net: '10 GbE, Wi-Fi 7, 2x USB4',
     link: { name: 'USB4 / 10 GbE', latencyUs: 45, gbps: 10 }, pairable: false,
     confidence: 'measured', form: 'slab',
@@ -66,7 +71,7 @@ export const BOXES = [
     platform: 'rocm', status: 'shipping', priceUsd: 3500, priceAsOf: ASOF,
     priceNote: '$3,499.99 with 1 TB on the GMKtec store; a price rise is announced. Framework Desktop 128 GB uses the same chip.',
     memGB: 128, usableGB: 116, bwGBs: 256, tflops: { fp16: 59, fp8: 59, fp4: 59 },
-    eff: { bw: 1.0, compute: 0.68, step: 1, moeM0: 50 }, idleW: 13, loadW: 150,
+    eff: { bw: 1.0, compute: 0.68, step: 1, moeM0: 50, expertUs: 35, expertUsFp4: 4 }, idleW: 13, loadW: 150,
     net: '2.5 GbE, Wi-Fi 7, USB4',
     link: { name: 'USB4 (about 10 Gb/s)', latencyUs: 45, gbps: 10 }, pairable: false,
     confidence: 'measured', form: 'slab',
@@ -85,7 +90,7 @@ export const BOXES = [
     platform: 'metal', status: 'shipping', priceUsd: 3699, priceAsOf: ASOF,
     priceNote: 'Mac Studio M5 Max starts at $2,499; the 128 GB price is an estimate. Apple publishes no TFLOPS, so compute is backed out of measured prompt speed.',
     memGB: 128, usableGB: 104, bwGBs: 614, tflops: { fp16: 86, fp8: 86, fp4: 86 },
-    eff: { bw: 1.0, compute: 1, step: 1, moeM0: 30 }, idleW: 7, loadW: 180,
+    eff: { bw: 1.0, compute: 1, step: 1, moeM0: 30, expertUs: 10 }, idleW: 7, loadW: 180,
     net: '10 GbE, Thunderbolt 5, Wi-Fi 7',
     link: { name: 'Thunderbolt 5 with RDMA', latencyUs: 15, gbps: 80 }, pairable: true,
     confidence: 'estimate', form: 'studio',
@@ -95,7 +100,7 @@ export const BOXES = [
     platform: 'metal', status: 'shipping', priceUsd: 7899, priceAsOf: ASOF,
     priceNote: 'M5 Ultra starts at $5,499 with 96 GB; the 256 GB price is an estimate. 512 GB ships late October.',
     memGB: 256, usableGB: 220, bwGBs: 1200, tflops: { fp16: 160, fp8: 160, fp4: 160 },
-    eff: { bw: 0.8, compute: 1, step: 1, moeM0: 30 }, idleW: 9, loadW: 280,
+    eff: { bw: 0.8, compute: 1, step: 1, moeM0: 30, expertUs: 10 }, idleW: 9, loadW: 280,
     net: '10 GbE, Thunderbolt 5, Wi-Fi 7',
     link: { name: 'Thunderbolt 5 with RDMA', latencyUs: 15, gbps: 80 }, pairable: true,
     confidence: 'estimate', form: 'studio',
@@ -105,7 +110,7 @@ export const BOXES = [
     platform: 'metal', status: 'shipping', priceUsd: 2299, priceAsOf: ASOF,
     priceNote: 'The M5 Pro Mac mini starts at $1,699 with 24 GB (Apple Store, 2026-09-24); the 64 GB price assumes the M4 Pro\'s $600 step to 64 GB. Apple lists 6 W idle and 145 W maximum; inference draws less than the maximum.',
     memGB: 64, usableGB: 50, bwGBs: 307, tflops: { fp16: 44, fp8: 44, fp4: 44 },
-    eff: { bw: 1.0, compute: 1, step: 1, moeM0: 30 }, idleW: 6, loadW: 110,
+    eff: { bw: 1.0, compute: 1, step: 1, moeM0: 30, expertUs: 10 }, idleW: 6, loadW: 110,
     net: '1 GbE (10 GbE option), Thunderbolt 5, Wi-Fi 7',
     link: { name: 'Thunderbolt 5 with RDMA', latencyUs: 15, gbps: 80 }, pairable: true,
     confidence: 'estimate', form: 'mini',
@@ -115,7 +120,7 @@ export const BOXES = [
     platform: 'metal', status: 'shipping', priceUsd: 1699, priceAsOf: ASOF,
     priceNote: 'Apple Store price, 2026-09-24. macOS lets the GPU use about two thirds of memory on Macs this size, so about 16 GB holds the model and its KV cache.',
     memGB: 24, usableGB: 16, bwGBs: 307, tflops: { fp16: 44, fp8: 44, fp4: 44 },
-    eff: { bw: 1.0, compute: 1, step: 1, moeM0: 30 }, idleW: 5, loadW: 100,
+    eff: { bw: 1.0, compute: 1, step: 1, moeM0: 30, expertUs: 10 }, idleW: 5, loadW: 100,
     net: '1 GbE (10 GbE option), Thunderbolt 5, Wi-Fi 7',
     link: { name: 'Thunderbolt 5 with RDMA', latencyUs: 15, gbps: 80 }, pairable: true,
     confidence: 'estimate', form: 'mini',
@@ -155,7 +160,7 @@ export const BOXES = [
     platform: 'metal', status: 'discontinued', priceUsd: 9499, priceAsOf: ASOF,
     priceNote: 'Was $9,499 new; Apple removed the 512 GB option in March 2026. Used prices vary.',
     memGB: 512, usableGB: 470, bwGBs: 819, tflops: { fp16: 40, fp8: 40, fp4: 40 },
-    eff: { bw: 0.6, compute: 1, step: 1, moeM0: 30 }, idleW: 9, loadW: 260,
+    eff: { bw: 0.6, compute: 1, step: 1, moeM0: 30, expertUs: 10 }, idleW: 9, loadW: 260,
     net: '10 GbE, Thunderbolt 5, Wi-Fi 6E',
     link: { name: 'Thunderbolt 5', latencyUs: 30, gbps: 80 }, pairable: false,
     confidence: 'measured', form: 'studio',
@@ -175,7 +180,7 @@ export const BOXES = [
     platform: 'rocm', status: 'announced', priceUsd: 7500, priceAsOf: ASOF,
     priceNote: 'AMD caps GPU memory at 160 GB; partner boxes from Q3 2026, rumoured at $7,500 or more. Bandwidth assumed unchanged at 256 GB/s.',
     memGB: 192, usableGB: 156, bwGBs: 256, tflops: { fp16: 62, fp8: 62, fp4: 62 },
-    eff: { bw: 1.0, compute: 0.68, step: 1, moeM0: 50 }, idleW: 18, loadW: 170,
+    eff: { bw: 1.0, compute: 0.68, step: 1, moeM0: 50, expertUs: 35, expertUsFp4: 4 }, idleW: 18, loadW: 170,
     net: 'Assumed 10 GbE, Wi-Fi 7',
     link: { name: '10 GbE', latencyUs: 45, gbps: 10 }, pairable: false,
     confidence: 'estimate', form: 'slab',

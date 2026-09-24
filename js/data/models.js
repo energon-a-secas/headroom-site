@@ -13,9 +13,16 @@
 //   attn.sliding      layers attending to a fixed window (attn.window tokens)
 //   stateMB           fixed per-sequence state (linear-attention layers)
 //   kvBytesOverride   per-token KV bytes at 16-bit, for compressed schemes (MLA)
-//   moe               { experts, topK }; the always-read shared part is derived in perf.js
+//   moe               { experts, topK, layers? }; the always-read shared part is derived
+//                     in perf.js; layers counts only the expert layers when some are dense
 //   bits              { shared, expert } for checkpoints shipped pre-quantized
-//   tier              coarse capability guide, 1 (toy) to 5 (frontier-class open model)
+//   tier              coarse capability guide, 1 (toy) to 5 (frontier-class open model).
+//                     Models added in September 2026 follow one line through the
+//                     Artificial Analysis Intelligence Index without reasoning:
+//                     tier = 2 + 0.3 x (index - 4), capped at 5. The older tiers were
+//                     set by hand and sit within half a tier of that line, except
+//                     DeepSeek R1, kept at 5 as the open frontier of its day. The cap
+//                     hides real gaps: Qwen3.6 27B and GLM-4.7 both score far above R1.
 //   reasons           { min }: the model always reasons before it answers, and even
 //                     its lowest effort writes about `min` hidden tokens first.
 //                     Hybrid models (Qwen3, GLM) are modelled with thinking off,
@@ -38,8 +45,8 @@ export const MODELS = [
   {
     id: 'qwen3-8b', name: 'Qwen3 8B', maker: 'Alibaba',
     totalB: 8.19, activeB: 8.19, embedB: 0.62, layers: 36, qHeads: 32, kvHeads: 8, headDim: 128,
-    attn: { full: 36, sliding: 0, window: 0 }, maxCtx: 131072, tier: 2.5,
-    note: '32K native context, 128K with YaRN scaling.',
+    attn: { full: 36, sliding: 0, window: 0 }, maxCtx: 32768, tier: 2.5,
+    note: '32K native context; 128K needs YaRN scaling switched on, which servers do not do by default.',
   },
   {
     id: 'gpt-oss-20b', name: 'gpt-oss-20b', maker: 'OpenAI',
@@ -71,8 +78,8 @@ export const MODELS = [
   {
     id: 'qwen3-32b', name: 'Qwen3 32B', maker: 'Alibaba',
     totalB: 32.8, activeB: 32.8, embedB: 0.78, layers: 64, qHeads: 64, kvHeads: 8, headDim: 128,
-    attn: { full: 64, sliding: 0, window: 0 }, maxCtx: 131072, tier: 3.5,
-    note: 'Dense 32B with 64 layers: 256 KB of KV per token at 16-bit.',
+    attn: { full: 64, sliding: 0, window: 0 }, maxCtx: 32768, tier: 3.5,
+    note: 'Dense 32B with 64 layers: 256 KB of KV per token at 16-bit. 32K native context, 128K only with YaRN switched on.',
   },
   {
     id: 'llama-3.3-70b', name: 'Llama 3.3 70B', maker: 'Meta',
@@ -81,7 +88,7 @@ export const MODELS = [
     note: 'The classic "does my box run 70B" test. Dense, so bandwidth sets the speed.',
   },
   {
-    id: 'qwen3-next-80b', name: 'Qwen3-Next 80B-A3B', maker: 'Alibaba',
+    id: 'qwen3-next-80b', name: 'Qwen3-Next 80B-A3B Instruct', maker: 'Alibaba',
     totalB: 80.0, activeB: 3.0, embedB: 0.62, layers: 48, qHeads: 16, kvHeads: 2, headDim: 256,
     attn: { full: 12, sliding: 0, window: 0 }, stateMB: 36, maxCtx: 262144, tier: 4,
     moe: { experts: 512, topK: 10 },
@@ -120,8 +127,78 @@ export const MODELS = [
     id: 'deepseek-r1', name: 'DeepSeek R1 671B', maker: 'DeepSeek',
     totalB: 671, activeB: 37, embedB: 0.93, layers: 61, qHeads: 128, kvHeads: 1, headDim: 576,
     attn: { full: 61, sliding: 0, window: 0 }, kvBytesOverride: 70272, maxCtx: 131072, tier: 5,
-    moe: { experts: 256, topK: 8 }, reasons: { min: 500 },
+    moe: { experts: 256, topK: 8, layers: 58 }, reasons: { min: 500 },
     note: 'Always thinks first, often for thousands of tokens. Multi-head latent attention compresses KV to 576 values per layer. Weights are the problem: 400 GB at 4-bit.',
+  },
+  // ── September 2026 generation ──
+  // Hybrid models (Qwen3.5/3.6, GLM) think by default and are modelled with
+  // thinking off, as the other hybrids are; MiniMax-M2.7 cannot switch it off.
+  {
+    id: 'gemma-4-12b', name: 'Gemma 4 12B', maker: 'Google',
+    totalB: 11.95, activeB: 11.95, embedB: 0, layers: 48, qHeads: 16, kvHeads: 8, headDim: 256,
+    attn: { full: 8, sliding: 40, window: 1024 }, kvBytesOverride: 8192, maxCtx: 262144, tier: 3.6,
+    note: 'Dense 12B for 16 GB machines. Five of every six layers look back only 1,024 tokens, and the global layers share one key-value head.',
+  },
+  {
+    id: 'gemma-4-26b-a4b', name: 'Gemma 4 26B-A4B', maker: 'Google',
+    totalB: 25.2, activeB: 3.8, embedB: 0, layers: 30, qHeads: 16, kvHeads: 8, headDim: 256,
+    attn: { full: 5, sliding: 25, window: 1024 }, kvBytesOverride: 10240, maxCtx: 262144, tier: 4.7,
+    moe: { experts: 128, topK: 8 },
+    note: 'Mixture of experts with 3.8B active: generates like a small model, answers like a big one of last year.',
+  },
+  {
+    id: 'glm-4.7-flash', name: 'GLM-4.7-Flash', maker: 'Z.ai',
+    totalB: 29.9, activeB: 3.6, embedB: 0.32, layers: 47, qHeads: 20, kvHeads: 1, headDim: 576,
+    attn: { full: 47, sliding: 0, window: 0 }, kvBytesOverride: 54144, maxCtx: 202752, tier: 4.1,
+    moe: { experts: 64, topK: 4, layers: 46 },
+    note: 'Latent attention like DeepSeek: 576 values per layer per token of KV cache, whatever the head count.',
+  },
+  {
+    id: 'qwen3.6-27b', name: 'Qwen3.6 27B', maker: 'Alibaba',
+    totalB: 27.8, activeB: 27.8, embedB: 1.27, layers: 64, qHeads: 24, kvHeads: 4, headDim: 256,
+    attn: { full: 16, sliding: 0, window: 0 }, stateMB: 75, maxCtx: 262144, tier: 5,
+    note: 'Dense and hybrid: 48 of 64 layers use linear attention with a fixed state, so only 16 grow a KV cache. Scores above DeepSeek R1 on current benchmarks, and every token reads all 28B weights.',
+  },
+  {
+    id: 'gemma-4-31b', name: 'Gemma 4 31B', maker: 'Google',
+    totalB: 30.7, activeB: 30.7, embedB: 0, layers: 60, qHeads: 32, kvHeads: 16, headDim: 256,
+    attn: { full: 10, sliding: 50, window: 1024 }, kvBytesOverride: 40960, maxCtx: 262144, tier: 5,
+    note: 'Dense 31B. Fifty of its sixty layers look back only 1,024 tokens, so long contexts stay cheap; generation is bandwidth-bound like any dense model.',
+  },
+  {
+    id: 'qwen3.6-35b-a3b', name: 'Qwen3.6 35B-A3B', maker: 'Alibaba',
+    totalB: 35.95, activeB: 3.0, embedB: 0.51, layers: 40, qHeads: 16, kvHeads: 2, headDim: 256,
+    attn: { full: 10, sliding: 0, window: 0 }, stateMB: 31, maxCtx: 262144, tier: 4.7,
+    moe: { experts: 256, topK: 8 },
+    note: 'The small hybrid: 3B active, linear attention in three of every four layers. Fits a 24 GB Mac at 3-bit.',
+  },
+  {
+    id: 'nemotron-3-super', name: 'Nemotron 3 Super 120B-A12B', maker: 'NVIDIA',
+    totalB: 120, activeB: 12, embedB: 0.54, layers: 88, qHeads: 32, kvHeads: 2, headDim: 128,
+    attn: { full: 8, sliding: 0, window: 0 }, stateMB: 84, maxCtx: 262144, tier: 3.2,
+    moe: { experts: 512, topK: 22, layers: 40 },
+    note: 'Mamba-2 hybrid: only 8 of 88 layers keep a KV cache, so a million-token context is affordable. NVIDIA ships it in NVFP4 for DGX Spark.',
+  },
+  {
+    id: 'qwen3.5-122b-a10b', name: 'Qwen3.5 122B-A10B', maker: 'Alibaba',
+    totalB: 125.1, activeB: 10, embedB: 0.76, layers: 48, qHeads: 32, kvHeads: 2, headDim: 256,
+    attn: { full: 12, sliding: 0, window: 0 }, stateMB: 75, maxCtx: 262144, tier: 4.1,
+    moe: { experts: 256, topK: 8 },
+    note: 'Hybrid mixture of experts sized for 128 GB boxes at 4 to 5 bits. The newer 27B dense scores higher.',
+  },
+  {
+    id: 'minimax-m2.7', name: 'MiniMax-M2.7', maker: 'MiniMax',
+    totalB: 229, activeB: 10.4, embedB: 0.61, layers: 62, qHeads: 48, kvHeads: 8, headDim: 128,
+    attn: { full: 62, sliding: 0, window: 0 }, maxCtx: 196608, tier: 5,
+    moe: { experts: 256, topK: 8 }, reasons: { min: 150 },
+    note: 'An agent model that always thinks between steps (about 150 hidden tokens at least, an estimate). 229B total needs 3 bits to fit 128 GB.',
+  },
+  {
+    id: 'glm-4.7', name: 'GLM-4.7', maker: 'Z.ai',
+    totalB: 355, activeB: 32, embedB: 0.78, layers: 92, qHeads: 96, kvHeads: 8, headDim: 128,
+    attn: { full: 92, sliding: 0, window: 0 }, maxCtx: 202752, tier: 5,
+    moe: { experts: 160, topK: 8, layers: 89 },
+    note: 'A frontier-class open model: 355B total, 32B active. Needs a 256 GB box at 4 bits or two linked boxes.',
   },
   // Calibration yardsticks: hidden from the picker, used by the Method tab.
   {
@@ -139,7 +216,9 @@ export const MODELS = [
 // ── Quantization ─────────────────────────────────────────────
 // bits: average stored bits per weight including block scales (GGUF K-quants
 // mix precisions per tensor, so these are the published averages).
-// tierLoss: how much a model's capability tier drops at this precision.
+// tierLoss: how much a model's capability tier drops at this precision, for a
+// model of 10B active parameters or more; smaller ones lose up to twice that
+// (tierOf() in perf.js).
 // compute: which tensor-core rate prompt processing can use when the runtime
 // supports low-precision kernels on this hardware.
 export const QUANTS = [

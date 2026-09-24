@@ -99,7 +99,7 @@ const mission = (id, over = {}) => {
 };
 
 test('a background batch keeps the box busy without making the verdict tight', () => {
-  const [, r] = mission('helpdesk-backfill');
+  const [, r] = mission('helpdesk-backfill', { box: 'dgx-spark', count: 1, mode: 'replica', model: 'gemma-4-26b-a4b', quant: 'q4', kv: 'f16', runtime: 'vllm', overrides: {} });
   assert(r.util.busy > 0.9 && r.verdict.id === 'right', `${Math.round(r.util.busy * 100)}% busy, verdict ${r.verdict.id}`);
   return r.verdict.text;
 });
