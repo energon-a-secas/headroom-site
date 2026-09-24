@@ -36,13 +36,18 @@ export function renderTransport() {
 
 export function renderFrame() {
   if (state.tab !== 'sandbox' || !state.sim) return;
-  drawFloor($('floor'), state.sim, $('floorLegend'));
+  drawFloor($('floor'), state.sim, $('floorLegend'), $('floorGroups'));
   $('clock').textContent = fmtClock(state.sim.t);
 }
 
+let lastSpoken = '';
 export function renderReport() {
   if (state.tab !== 'sandbox' || !state.report) return;
   renderScore($('score'), state.report, state.sim);
+  // Screen readers hear the verdict when it changes, not every refresh.
+  const label = $('score').querySelector('.verdict__label')?.textContent || '';
+  const spoken = label ? `${label}. ${$('score').querySelector('.verdict__text')?.textContent || ''}` : '';
+  if (spoken && spoken !== lastSpoken) { lastSpoken = spoken; $('liveStatus').textContent = spoken; }
   renderCharts($('charts'), state.report.series || []);
   renderBlame($('blame'), state.report);
 }
@@ -52,9 +57,9 @@ export function renderRedline() {
   const R = state.redline;
   if (!R.busy && !R.result) { el.hidden = true; return; }
   el.hidden = false;
-  const probes = `<div class="probes">${R.probes.map((p) => `<span class="probe ${p.ok ? 'ok' : 'no'}" title="${p.ok ? 'passes' : 'fails'}${p.bottleneck ? `: ${e(LABELS[p.bottleneck] || p.bottleneck)}` : ''}">${fmtInt(p.n)} users ${p.ok ? '✓' : '✗'} ${fmtPct(p.pass)}</span>`).join('')}</div>`;
+  const probes = `<div class="probes">${R.probes.map((p) => `<span class="probe ${p.ok ? 'ok' : 'no'}" title="${p.ok ? 'passes' : 'fails'}${p.bottleneck ? `: ${e(LABELS[p.bottleneck] || p.bottleneck)}` : ''}">${fmtInt(p.n)} users ${p.ok ? '✓' : `✗ ${e((LABELS[p.bottleneck] || '').toLowerCase() || fmtPct(p.pass))}`}</span>`).join('')}</div>`;
   if (R.busy) {
-    el.innerHTML = `<div class="panel"><div class="panel__title">Finding the redline</div><p class="note">Doubling the crowd until answers fail, then narrowing in. Each probe is a full simulated run.</p>${probes}</div>`;
+    el.innerHTML = `<div class="panel"><h3 class="panel__title">Finding the redline</h3><p class="note">Doubling the crowd until answers fail, then narrowing in. Each probe is a full simulated run.</p>${probes}</div>`;
     return;
   }
   const res = R.result;
@@ -62,7 +67,7 @@ export function renderRedline() {
   const limit = res.limit;
   const why = limit && limit.ok ? `${LABELS[limit.bottleneck?.id] || 'Something'} runs out first: ${limit.bottleneck?.text || ''}` : (res.fit ? res.fit.reason : '');
   el.innerHTML = `<div class="panel">
-    <div class="panel__title">Redline <button type="button" class="btn btn--ghost btn--sm" data-act="close-redline">Close</button></div>
+    <h3 class="panel__title">Redline <button type="button" class="btn btn--ghost btn--sm" data-act="close-redline">Close</button></h3>
     ${res.users > 0
       ? `<p><span class="big">${fmtInt(res.users)}${res.capped ? '+' : ''}</span> <span class="muted">users of this mix keep 95% of answers on target.</span></p>
          <p class="note">You are simulating ${fmtInt(total)} now${res.users >= total ? `, so there is room for ${fmtInt(res.users - total)} more` : `, ${fmtInt(total - res.users)} over the line`}. ${e(why)}</p>

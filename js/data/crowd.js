@@ -48,7 +48,7 @@ export const PERSONAS = [
     id: 'voice', name: 'Voice assistant', glyph: 'V',
     prompt: 25, context: 0, prefix: 900, output: 70, history: true, turns: 4,
     think: 90, readTps: 3, slo: { ttft: 1.2, tps: 10, e2e: 0 }, patience: 10,
-    blurb: 'Speech in, speech out. Anything slower than a second to the first word feels broken.',
+    blurb: 'Speech in, speech out. Anything past 1.2 seconds to the first word feels broken.',
   },
   {
     id: 'student', name: 'Classroom student', glyph: 'S',
@@ -66,7 +66,7 @@ export const PERSONAS = [
     id: 'batch', name: 'Overnight batch', glyph: 'B',
     prompt: 60, context: 3000, prefix: 300, output: 300, history: false, turns: 1,
     think: 0, readTps: 0, slo: { ttft: 0, tps: 0, e2e: 600 }, patience: 3600,
-    blurb: 'A worker summarising documents back to back. Nobody waits on it; only throughput matters.',
+    blurb: 'A worker summarizing documents back to back. Nobody waits on it; only throughput matters.',
   },
 ];
 

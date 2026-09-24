@@ -12,7 +12,7 @@
   <meta name="neo-repo" content="https://github.com/energon-a-secas/headroom-site">
   <meta name="neo-updated" content="2026-09-23">
   <title>Headroom | Local AI Load Simulator</title>
-  <meta name="description" content="Simulate local AI mini PCs under real load: pick a box, a model and a crowd of users, then find the redline before you buy the hardware">
+  <meta name="description" content="Simulate a local AI box under your own crowd: pick the hardware, a model and the users, then find the redline before you buy">
   <meta property="og:title" content="Headroom | Local AI Load Simulator">
   <meta property="og:description" content="Put 50 Kindle readers on a DGX Spark and watch where it breaks. A load simulator for local AI boxes">
   <meta property="og:type" content="website">
@@ -58,7 +58,7 @@
     "@context": "https://schema.org",
     "@type": "WebApplication",
     "name": "Headroom",
-    "description": "Simulate local AI mini PCs under real load: pick a box, a model and a crowd of users, then find the redline before you buy the hardware",
+    "description": "Simulate a local AI box under your own crowd: pick the hardware, a model and the users, then find the redline before you buy",
     "url": "https://headroom.neorgon.com/",
     "applicationCategory": "DeveloperApplication",
     "operatingSystem": "Any",
@@ -103,15 +103,18 @@
   </header>
 
   <main id="main">
+    <noscript><p class="page note">Headroom runs its simulation in your browser, so it needs JavaScript.</p></noscript>
     <nav class="tabs" role="tablist" aria-label="Views">
       <button type="button" class="tab" role="tab" id="tab-sandbox" aria-controls="view-sandbox" data-tab="sandbox" aria-selected="true">Sandbox</button>
       <button type="button" class="tab" role="tab" id="tab-missions" aria-controls="view-missions" data-tab="missions" aria-selected="false" tabindex="-1">Missions</button>
-      <button type="button" class="tab" role="tab" id="tab-compare" aria-controls="view-compare" data-tab="compare" aria-selected="false" tabindex="-1">Compare boxes</button>
+      <button type="button" class="tab" role="tab" id="tab-compare" aria-controls="view-compare" data-tab="compare" aria-selected="false" tabindex="-1">Compare</button>
       <button type="button" class="tab" role="tab" id="tab-method" aria-controls="view-method" data-tab="method" aria-selected="false" tabindex="-1">How it works</button>
     </nav>
 
     <!-- ── Sandbox ── -->
     <section class="view" id="view-sandbox" role="tabpanel" aria-labelledby="tab-sandbox">
+      <h2 class="sr-only">Sandbox</h2>
+      <p class="sr-only" role="status" id="liveStatus"></p>
       <div class="mission-bar" id="missionBar" hidden></div>
       <div class="lab">
         <aside class="loadout" id="loadout" aria-label="Loadout: box, model, runtime and crowd"></aside>
@@ -122,20 +125,21 @@
             <div class="seg" role="group" aria-label="Speed" id="speedSeg">
               <button type="button" data-speed="1">1x</button>
               <button type="button" data-speed="20">20x</button>
-              <button type="button" data-speed="120">2 min/s</button>
-              <button type="button" data-speed="600">10 min/s</button>
+              <button type="button" data-speed="120">120x</button>
+              <button type="button" data-speed="600">600x</button>
             </div>
             <span class="clock" id="clock" aria-label="Simulated time">00:00:00</span>
             <div class="transport__end">
               <button type="button" class="btn btn--ghost btn--sm" id="skipBtn" title="Simulate 20 minutes at once">Skip 20 min</button>
-              <button type="button" class="btn btn--ghost btn--sm" id="restartBtn">Restart</button>
+              <button type="button" class="btn btn--ghost btn--sm" id="restartBtn" title="Start again from zero and watch">Restart</button>
               <button type="button" class="btn btn--secondary btn--sm" id="redlineBtn">Find the redline</button>
               <a class="btn btn--ghost btn--sm only-narrow" href="#loadout">Change setup</a>
             </div>
           </div>
 
           <div class="floor-wrap">
-            <canvas id="floor" role="img" aria-label="Users around the box, coloured by what they are doing"></canvas>
+            <div class="floor-groups" id="floorGroups"></div>
+            <canvas id="floor" role="img" aria-label="Users around the box, colored by what they are doing"></canvas>
             <div class="floor-legend" id="floorLegend"></div>
           </div>
 
@@ -180,11 +184,11 @@
       <div class="page prose">
         <div class="page__head">
           <h2 class="page__title">How Headroom works</h2>
-          <p class="page__lead">A small, honest model of what happens between someone pressing send and an answer appearing on their screen. Every number it uses is on this page, and every one of them is editable in the Sandbox.</p>
+          <p class="page__lead">A small model of what happens between someone pressing send and the answer appearing on their screen. The rules and the measurements behind them are on this page; the box, model, server and crowd are yours to change in the Sandbox.</p>
         </div>
 
         <h3>The loop every user runs</h3>
-        <p>Each simulated person is a closed loop: ask, wait, read the answer, think, ask again. A request crosses the network, waits in the server's queue, has its prompt read (prefill), then generates its answer one token at a time (decode), crosses the network back, and is drawn on the device. Because users wait for answers before asking again, a slow box slows its own crowd down, which is how real households and offices behave. It is also why the question worth asking is not "how fast is it" but "how many people before the answers get bad".</p>
+        <p>Each simulated person is a closed loop: ask, wait, read the answer, think, ask again. A request crosses the network, waits in the server's queue, has its prompt read (prefill), then generates its answer one token at a time (decode), crosses the network back, and is drawn on the device. Because users wait for answers before asking again, a slow box slows its own crowd down, which is how real households and offices behave. So the useful question is how many people a box serves before the answers get bad.</p>
 
         <h3>One rule for speed</h3>
         <p>The server works in iterations. Every iteration reads the model weights it needs once, reads the conversation memory (KV cache) of every sequence in the batch, and does two operations per active parameter per token, plus attention. Its length is the larger of two times, plus a fixed overhead:</p>
@@ -211,7 +215,7 @@
         <p>Each persona has its own idea of a good answer: a chat user wants text within 2 seconds at reading speed, a Kindle reader wants the whole answer within 20 seconds, a voice assistant wants its first word within 1.2 seconds. A run is <em>right-sized</em> when at least 95% of answers meet their target and the box is between 25% and 85% busy. Under 25% busy is <em>overkill</em>: it works, but the money is idle. The redline search doubles the crowd until answers fail, then bisects to the largest crowd that still passes.</p>
 
         <h3>Where the numbers come from</h3>
-        <p>Model shapes come from each model's published configuration. Hardware figures are vendor specifications, marked as estimates where the vendor does not publish them. Runtime efficiencies are calibrated against published single-user benchmarks, shown below next to what the model predicts.</p>
+        <p>Model shapes come from each model's published configuration. Hardware figures are vendor specifications, or estimates backed out of measured speed where the vendor publishes none. Runtime efficiencies are calibrated against published single-user benchmarks, shown below next to what the model predicts.</p>
         <div id="calibration"></div>
         <div id="catalog"></div>
 
@@ -223,7 +227,7 @@
           <li>Answer quality, beyond a coarse capability tier per model and quantization.</li>
           <li>Software drift: the same box and model moved 50% or more within months of 2025 and 2026 as llama.cpp, vLLM and drivers improved. Every calibration point below carries its build or date.</li>
         </ul>
-        <p>Against the 30 published measurements below, the model's typical error is about 11%, with a few older or unusual points off by up to 2.5 times. Treat results as a well-argued estimate, and trust them most on the question of what runs out first.</p>
+        <p>Against the published measurements below, the model's typical error is about 11%, with a few older or unusual points off by up to 2.5 times. Treat results as estimates. They are most reliable on what runs out first.</p>
       </div>
     </section>
   </main>

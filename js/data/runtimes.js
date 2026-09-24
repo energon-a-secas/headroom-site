@@ -51,7 +51,7 @@ export const RUNTIMES = [
     bwEff: 0.76, computeEff: 0.56, stepMs: 6, perSeqMs: 0.07,
     prefixCache: true, chunk: 2048, lowPrecision: true,
     platforms: ['cuda'],
-    blurb: 'Like vLLM, with a radix-tree prefix cache that shines when prompts share a system prompt.',
+    blurb: 'Like vLLM, with a radix-tree prefix cache that pays off when requests share a system prompt.',
   },
   {
     id: 'trtllm', name: 'TensorRT-LLM', batching: 'paged',

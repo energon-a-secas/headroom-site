@@ -57,7 +57,7 @@ export const BOXES = [
   {
     id: 'evo-x2', name: 'GMKtec EVO-X2 128 GB', short: 'EVO-X2', maker: 'GMKtec', chip: 'Ryzen AI Max+ 395, Radeon 8060S',
     platform: 'rocm', status: 'shipping', priceUsd: 3500, priceAsOf: ASOF,
-    priceNote: '$3,499.99 with 1 TB on the GMKtec store, with a price rise announced. Framework Desktop 128 GB uses the same chip.',
+    priceNote: '$3,499.99 with 1 TB on the GMKtec store; a price rise is announced. Framework Desktop 128 GB uses the same chip.',
     memGB: 128, usableGB: 116, bwGBs: 256, tflops: { fp16: 59, fp8: 59, fp4: 59 },
     eff: { bw: 1.0, compute: 0.68, step: 1, moeM0: 50 }, idleW: 13, loadW: 150,
     net: '2.5 GbE, Wi-Fi 7, USB4',
@@ -66,7 +66,7 @@ export const BOXES = [
   },
   {
     id: 'jetson-thor', name: 'Jetson AGX Thor dev kit', short: 'Jetson Thor', maker: 'NVIDIA', chip: 'Blackwell, 2560 cores',
-    platform: 'cuda', status: 'shipping', priceUsd: 3499, priceAsOf: ASOF, priceNote: 'Developer kit list price. NVIDIA quotes 2,070 sparse FP4 TFLOPS, but measured prompt speed is half a DGX Spark, so the rates here follow the measurements.',
+    platform: 'cuda', status: 'shipping', priceUsd: 3499, priceAsOf: ASOF, priceNote: 'Developer kit list price. NVIDIA quotes 2,070 sparse FP4 TFLOPS, but measured prompt speed is half that of a DGX Spark, so the rates here follow the measurements.',
     memGB: 128, usableGB: 112, bwGBs: 273, tflops: { fp16: 100, fp8: 200, fp4: 400 },
     eff: { bw: 0.75, compute: 0.45, step: 1.2, moeM0: 110 }, idleW: 20, loadW: 130,
     net: '5 GbE, QSFP28 (4x 25 GbE), Wi-Fi 6E',
@@ -146,7 +146,7 @@ export const BOXES = [
   {
     id: 'rtx-spark-devbox', name: 'Surface RTX Spark Dev Box', short: 'RTX Spark box', maker: 'Microsoft + NVIDIA', chip: 'NVIDIA N1X (RTX Spark)',
     platform: 'cuda', status: 'announced', priceUsd: 3250, priceAsOf: ASOF,
-    priceNote: 'Announced 2026-05-31 for fall 2026 with no price; $3,000 to $3,500 is a rumour. Bandwidth and TFLOPS are unpublished: these assume GB10-class memory in a 45 to 80 W chip.',
+    priceNote: 'Announced 2026-05-31 for fall 2026 with no price; $3,000 to $3,500 is a rumor. Bandwidth and TFLOPS are unpublished: these assume GB10-class memory in a 45 to 80 W chip.',
     memGB: 128, usableGB: 110, bwGBs: 273, tflops: { fp16: 50, fp8: 100, fp4: 200 },
     eff: { bw: 0.95, compute: 0.9, step: 1, moeM0: 110 }, idleW: 10, loadW: 100,
     net: 'Unannounced',
@@ -156,7 +156,7 @@ export const BOXES = [
   {
     id: 'gorgon-halo-192', name: 'Ryzen AI Max PRO 400 192 GB', short: 'Gorgon Halo 192', maker: 'AMD partners', chip: 'Ryzen AI Max PRO 495, Radeon 8065S',
     platform: 'rocm', status: 'announced', priceUsd: 7500, priceAsOf: ASOF,
-    priceNote: 'The 192 GB class from the infographic. AMD caps GPU memory at 160 GB; partner boxes from Q3 2026, rumoured at $7,500 or more. Bandwidth assumed unchanged at 256 GB/s.',
+    priceNote: 'AMD caps GPU memory at 160 GB; partner boxes from Q3 2026, rumoured at $7,500 or more. Bandwidth assumed unchanged at 256 GB/s.',
     memGB: 192, usableGB: 156, bwGBs: 256, tflops: { fp16: 62, fp8: 62, fp4: 62 },
     eff: { bw: 1.0, compute: 0.68, step: 1, moeM0: 50 }, idleW: 18, loadW: 170,
     net: 'Assumed 10 GbE, Wi-Fi 7',

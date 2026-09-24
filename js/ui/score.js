@@ -45,8 +45,8 @@ function memoryBlock(r, sim) {
   const free = Math.max(0, total - used);
   const seg = parts.filter((p) => p[1] > 0.05).map(([l, v, c]) => `<span style="flex:${v.toFixed(2)};background:${c}" title="${e(l)}: ${fmtGB(v)}"></span>`).join('');
   return `<section class="panel memory" aria-label="Memory">
-    <div class="panel__title">Memory <span class="muted">${fmtGB(total)} usable</span></div>
-    <div class="stack" role="img" aria-label="Memory use: ${parts.map((p) => `${p[0]} ${fmtGB(p[1])}`).join(', ')}, free ${fmtGB(free)}">${seg}<span style="flex:${free.toFixed(2)};background:rgba(255,255,255,.06)"></span></div>
+    <h3 class="panel__title">Memory <span class="muted">${fmtGB(total)} usable</span></h3>
+    <div class="bar-stack" role="img" aria-label="Memory use: ${parts.map((p) => `${p[0]} ${fmtGB(p[1])}`).join(', ')}, free ${fmtGB(free)}">${seg}<span style="flex:${free.toFixed(2)};background:rgba(255,255,255,.06)"></span></div>
     <div class="stack-legend">${parts.filter((p) => p[1] > 0.05).map(([l, v, c]) => `<span class="lg"><i style="background:${c}"></i>${e(l)} ${fmtGB(v)}</span>`).join('')}<span class="lg"><i style="background:rgba(255,255,255,.12)"></i>Free ${fmtGB(free)}</span></div>
   </section>`;
 }
@@ -55,7 +55,7 @@ export function renderScore(el, r, sim) {
   if (!r) { el.innerHTML = ''; return; }
   if (!r.ok) {
     el.innerHTML = `${verdictBlock(r.verdict)}
-      <section class="panel" style="margin-top:12px"><div class="panel__title">Ways to make it fit</div><ul class="list">${r.advice.map((a) => `<li>${e(a)}</li>`).join('')}</ul></section>
+      <section class="panel" style="margin-top:12px"><h3 class="panel__title">Ways to make it fit</h3><ul class="list">${r.advice.map((a) => `<li>${e(a)}</li>`).join('')}</ul></section>
       ${memoryBlock(r)}`;
     return;
   }
@@ -66,9 +66,11 @@ export function renderScore(el, r, sim) {
   const speeds = g0.map((g) => g.tps.p50).filter((x) => x != null);
   const served = r.users - r.unserved;
   const u = r.util;
-  const verdict = warming
-    ? { id: 'idle', label: 'Warming up', text: 'Statistics start after the first simulated minute, once the crowd has settled into its rhythm.' }
-    : r.verdict;
+  const verdict = sim && sim.t === 0
+    ? { id: 'idle', label: 'Not started', text: 'Skip 20 min for an answer now, or Run to watch the crowd arrive.' }
+    : warming
+      ? { id: 'idle', label: 'Warming up', text: 'Statistics start after the first simulated minute, once the crowd has settled into its rhythm.' }
+      : r.verdict;
 
   el.innerHTML = `${verdictBlock(verdict)}
   <section class="panel" style="margin-top:12px" aria-label="Key numbers">
@@ -82,8 +84,8 @@ export function renderScore(el, r, sim) {
     </div>
   </section>
   ${memoryBlock(r, sim)}
-  <section class="panel" aria-label="Utilisation">
-    <div class="panel__title">What the box is doing</div>
+  <section class="panel" aria-label="Utilization">
+    <h3 class="panel__title">What the box is doing</h3>
     ${meter('Busy', u.busy)}
     ${meter('Memory bandwidth used', u.bwUtil, null, 0.7)}
     ${meter('Tensor compute used', u.computeUtil, null, 0.7)}
@@ -91,7 +93,7 @@ export function renderScore(el, r, sim) {
     ${u.cacheHit > 0 ? meter('Prompt tokens from cache', u.cacheHit, null, 2) : ''}
   </section>
   <section class="panel" aria-label="Bottleneck">
-    <div class="panel__title">Limit <span class="muted">${e(LABELS[r.bottleneck.id] || r.bottleneck.label)}</span></div>
+    <h3 class="panel__title">Limit <span class="muted">${e(LABELS[r.bottleneck.id] || r.bottleneck.label)}</span></h3>
     <p style="font-size:var(--text-sm);color:var(--text-secondary);line-height:1.5">${e(r.bottleneck.text)}</p>
     ${r.advice.length ? `<ul class="list" style="margin-top:10px">${r.advice.map((a) => `<li>${e(a)}</li>`).join('')}</ul>` : ''}
   </section>
@@ -104,9 +106,9 @@ function econBlock(r) {
   const payback = !isFinite(E.paybackMonths) ? 'never, at this usage'
     : E.paybackMonths > 120 ? 'over 10 years' : `${E.paybackMonths.toFixed(E.paybackMonths < 10 ? 1 : 0)} months`;
   return `<section class="panel" aria-label="Costs">
-    <div class="panel__title">Costs <span class="muted">${E.hours} busy h/day</span></div>
+    <h3 class="panel__title">Costs <span class="muted">${E.hours} busy h/day</span></h3>
     <dl class="kv">
-      <dt>Average draw while busy hours run</dt><dd>${Math.round(r.util.avgW)} W</dd>
+      <dt>Average draw in busy hours</dt><dd>${Math.round(r.util.avgW)} W</dd>
       <dt>Electricity</dt><dd>${fmtUsd(E.elecMonth, 2)} / month</dd>
       <dt>Hardware over ${E.years} years</dt><dd>${fmtUsd(E.amortMonth)} / month</dd>
       <dt>Per served user</dt><dd>${E.perUserMonth == null ? 'none' : fmtUsd(E.perUserMonth, 2)} / month</dd>
@@ -127,7 +129,7 @@ function groupsBlock(r) {
     </tr>${fails || g.late || g.truncated ? `<tr><td colspan="4" class="muted" style="border-bottom-color:var(--border)">${e([fails, g.late ? `${g.late} still waiting past the target` : '', g.truncated ? `${g.truncated} conversations trimmed` : ''].filter(Boolean).join('; '))}</td></tr>` : ''}`;
   }).join('');
   return `<section class="panel" aria-label="Groups">
-    <div class="panel__title">By group</div>
+    <h3 class="panel__title">By group</h3>
     <div class="table-wrap"><table class="tbl"><thead><tr><th>Group</th><th class="r">On target</th><th class="r">First text p95</th><th class="r">Whole p95</th></tr></thead><tbody>${rows}</tbody></table></div>
   </section>`;
 }

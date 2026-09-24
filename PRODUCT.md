@@ -1,6 +1,6 @@
 # Headroom: product one-pager
 
-**What it is:** Simulate local AI mini PCs under real load: users, models, links and clients, and find the redline before you buy the box
+**What it is:** Simulate a local AI box under your own crowd: pick the hardware, a model and the users, then find the redline before you buy
 
 **Who it is for:** someone about to spend $2,000 to $12,000 on a local AI box (a DGX Spark, a Strix Halo mini PC, a Mac Studio) for a household, a classroom, a library or a small team, who cannot tell from a spec sheet how many people it will actually serve, or whether they are about to buy far more machine than the job needs.
 

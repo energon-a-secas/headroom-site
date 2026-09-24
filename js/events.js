@@ -15,13 +15,23 @@ import { missionById, scoreMission } from './data/missions.js';
 import { runtimeOn, scaleCrowd } from './engine/batch.js';
 import { resetFloorLayout } from './ui/floor.js';
 
-/** Apply a scenario change: persist, restart the run, redraw. */
+/** A selector that finds the same control after the loadout re-renders. */
+function controlKey(el) {
+  if (!el || !el.closest || !el.closest('#loadout')) return null;
+  for (const a of ['k', 'custom', 'econ', 'crowd', 'act']) if (el.dataset[a]) return `[data-${a}="${el.dataset[a]}"]`;
+  if (el.dataset.g !== undefined && el.dataset.f) return `[data-g="${el.dataset.g}"][data-f="${el.dataset.f}"]`;
+  return null;
+}
+
+/** Apply a scenario change: persist, rebuild the run, redraw, keep focus where it was. */
 function commit({ keepRedline = false } = {}) {
+  const focusSel = controlKey(document.activeElement);
   save(state);
   if (!keepRedline) state.redline = { busy: false, result: null, probes: [] };
   resetFloorLayout();
   rebuild();
   render();
+  if (focusSel) document.querySelector(`#loadout ${focusSel}`)?.focus({ preventScroll: true });
 }
 
 // ── Scenario edits ──
@@ -199,7 +209,7 @@ function onClick(ev) {
   switch (t.id) {
     case 'playBtn': state.running ? pause() : play(); renderTransport(); break;
     case 'skipBtn': skip(1200); break;
-    case 'restartBtn': rebuild(); break;
+    case 'restartBtn': rebuild({ settle: false }); break;
     case 'redlineBtn': findRedline(); break;
     case 'compareBtn': runCompare(); break;
     case 'scoreMissionBtn': scoreCurrentMission(); break;
@@ -256,7 +266,9 @@ export function openModal(id) {
 export function closeModal(id) {
   $(id).hidden = true;
   document.body.classList.remove('modal-open');
-  _lastFocus?.focus?.();
+  // The control that opened the modal may have been re-rendered meanwhile.
+  const back = _lastFocus && document.contains(_lastFocus) ? _lastFocus : $('scoreMissionBtn');
+  back?.focus?.();
 }
 function onKeydown(ev) {
   const m = document.querySelector('.modal:not([hidden])');

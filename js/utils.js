@@ -81,4 +81,4 @@ export function fmtDist(km, unit) {
 export const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 /** Status tone for a verdict id, shared by the scoreboard, compare and missions. */
-export const TONE = { right: 'good', overkill: 'warn', tight: 'warn', overloaded: 'bad', nofit: 'bad', idle: 'warn' };
+export const TONE = { right: 'good', overkill: 'warn', tight: 'warn', overloaded: 'bad', nofit: 'bad', idle: 'idle' };

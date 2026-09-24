@@ -16,7 +16,7 @@ function readColors() {
   const v = (n, f) => (cs.getPropertyValue(n).trim() || f);
   Object.assign(COLORS, {
     net: v('--c-1', '#3987e5'), wait: v('--c-2', '#d95926'), recv: v('--c-3', '#199e70'),
-    idle: 'rgba(255,255,255,.22)', read: 'rgba(25,158,112,.45)', off: 'rgba(255,255,255,.45)',
+    idle: v('--c-idle', 'rgba(255,255,255,.40)'), off: 'rgba(255,255,255,.55)',
     accent: v('--accent', '#22d3ee'), ink: 'rgba(249,249,249,.92)', mute: 'rgba(255,255,255,.55)',
     faint: 'rgba(255,255,255,.07)',
   });
@@ -86,7 +86,7 @@ function computeLayout(sim, w, h) {
   return { key: `${w}x${h}:${sim.users.length}:${groups.length}`, cx, cy, boxW, boxH, ax, r0, ry, dot: Math.max(1.6, Math.min(5.5, s * 0.22)), pos, sectors, sim };
 }
 
-export function drawFloor(canvas, sim, legendEl) {
+export function drawFloor(canvas, sim, legendEl, groupsEl) {
   if (!canvas || !sim) return;
   if (!COLORS.net) readColors();
   const dpr = window.devicePixelRatio || 1;
@@ -96,7 +96,14 @@ export function drawFloor(canvas, sim, legendEl) {
     canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
   }
   const key = `${w}x${h}:${sim.users.length}:${sim.groups.length}`;
-  if (!layout || layout.key !== key || layout.sim !== sim) layout = computeLayout(sim, w, h);
+  if (!layout || layout.key !== key || layout.sim !== sim) {
+    layout = computeLayout(sim, w, h);
+    // Group names live in HTML above the canvas; the canvas carries numbers only,
+    // so labels never sit on top of users.
+    if (groupsEl) {
+      groupsEl.innerHTML = sim.groups.map((g, i) => `<span><span class="num">${i + 1}</span>${escHtml(`${g.users.length} x ${g.persona.name} \u00b7 ${g.client.name} \u00b7 ${g.link.def.name}`)}${g.unserved ? ` <span class="flag">(${g.unserved} cannot connect)</span>` : ''}</span>`).join('');
+    }
+  }
   const L = layout;
   const ctx = canvas.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -128,7 +135,7 @@ export function drawFloor(canvas, sim, legendEl) {
       ctx.beginPath(); ctx.arc(x, y, L.dot, 0, Math.PI * 2); ctx.stroke();
       continue;
     }
-    ctx.fillStyle = s === U.READ ? COLORS.read : COLORS[key];
+    ctx.fillStyle = COLORS[key];
     ctx.beginPath(); ctx.arc(x, y, L.dot, 0, Math.PI * 2); ctx.fill();
     if (key === 'wait') {
       const patience = sim.groups[users[i].gi].persona.patience || 60;
@@ -148,7 +155,7 @@ export function drawFloor(canvas, sim, legendEl) {
   }
 
   drawBox(ctx, L, sim, snap);
-  drawLabels(ctx, L, sim, w);
+  drawLabels(ctx, L, sim);
   if (legendEl) {
     legendEl.innerHTML = STATES.map((st, i) => (st[0] === 'off' && !counts[i] ? '' :
       `<span class="lg"><i class="${st[0] === 'off' ? 'ring' : ''}" style="background:${COLORS[st[0]]}"></i>${escHtml(st[1])} <b>${counts[i]}</b></span>`)).join('');
@@ -171,7 +178,7 @@ function drawBox(ctx, L, sim, snap) {
   const name = eng.count > 1 ? `${eng.box.short} x${eng.count}` : eng.box.short;
   ctx.fillText(name, cx, y + 20, boxW - 12);
   ctx.fillStyle = COLORS.mute;
-  ctx.font = '11px system-ui, sans-serif';
+  ctx.font = '12px system-ui, sans-serif';
   if (!eng.fit.ok) {
     ctx.fillStyle = '#f08a8a';
     ctx.fillText('does not fit', cx, y + 40);
@@ -200,22 +207,20 @@ function drawBox(ctx, L, sim, snap) {
   if (q > 40) { ctx.fillStyle = COLORS.mute; ctx.textAlign = 'right'; ctx.fillText(`+${q - 40}`, x - 44, y + 6); }
 }
 
-function drawLabels(ctx, L, sim, w) {
-  ctx.font = '11px system-ui, sans-serif';
+function drawLabels(ctx, L, sim) {
+  ctx.font = '600 12px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
   for (const sec of L.sectors) {
     const g = sim.groups[sec.gi];
-    const lx = L.cx + Math.cos(sec.mid) * (L.ry + 16) * L.ax, ly = L.cy + Math.sin(sec.mid) * (L.ry + 16);
-    const label = `${g.users.length} x ${g.persona.name} . ${g.client.name} . ${g.link.def.name}`.replace(/ \. /g, ' · ');
-    ctx.textAlign = lx < L.cx - 20 ? 'left' : lx > L.cx + 20 ? 'right' : 'center';
-    const tx = ctx.textAlign === 'left' ? Math.max(8, lx - 60) : ctx.textAlign === 'right' ? Math.min(w - 8, lx + 60) : lx;
-    const ty = Math.max(14, Math.min(L.cy * 2 - 6, ly));
-    ctx.fillStyle = 'rgba(4,7,20,.7)';
-    const tw = ctx.measureText(label).width;
-    const bx = ctx.textAlign === 'left' ? tx - 3 : ctx.textAlign === 'right' ? tx - tw - 3 : tx - tw / 2 - 3;
-    ctx.fillRect(bx, ty - 11, tw + 6, 15);
-    ctx.fillStyle = g.unserved ? '#f08a8a' : COLORS.mute;
-    ctx.fillText(label, tx, ty);
+    const x = L.cx + Math.cos(sec.mid) * (L.ry + 14) * L.ax, y = L.cy + Math.sin(sec.mid) * (L.ry + 14);
+    const bx = Math.max(12, Math.min(L.cx * 2 - 12, x)), by = Math.max(12, Math.min(L.cy * 2 - 12, y));
+    ctx.fillStyle = g.unserved ? 'rgba(208,59,59,.85)' : 'rgba(255,255,255,.16)';
+    ctx.beginPath(); ctx.arc(bx, by, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = COLORS.ink;
+    ctx.fillText(String(sec.gi + 1), bx, by + 0.5);
   }
+  ctx.textBaseline = 'alphabetic';
 }
 
 function roundRect(ctx, x, y, w, h, r) {

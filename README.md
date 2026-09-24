@@ -2,7 +2,7 @@
 
 # Headroom
 
-Simulate local AI mini PCs under real load: users, models, links and clients, and find the redline before you buy the box
+Simulate a local AI box under your own crowd: pick the hardware, a model and the users, then find the redline before you buy
 
 [![Live][badge-site]][url-site]
 [![HTML5][badge-html]][url-html]
@@ -38,14 +38,14 @@ Headroom tells you whether a local AI box will serve your people before you pay 
 
 ## Features
 
-- **Sandbox** -- a live floor of users around the box, coloured by what they are doing, with throughput, queue, answers-on-target and power charts
+- **Sandbox** -- a live floor of users around the box, colored by what they are doing, with throughput, queue, answers-on-target and power charts
 - **Find the redline** -- doubles the crowd until answers fail, then bisects; when the network gives out first, it also reports what the box alone would hold
 - **Compare boxes** -- the same crowd on every box in the catalog, with redlines, cost per user and wall power
 - **Missions** -- nine scenarios with a budget and a par price; three stars for serving everyone on the cheapest hardware that works
 - **Real protocols and links** -- SSE per-token events vs WebSocket batches, Wi-Fi airtime, Bluetooth hub limits, LoRa duty cycles, VPN distance
 - **Two server designs** -- llama.cpp and Ollama slots with preallocated context, vLLM, SGLang and TensorRT-LLM paged KV with prefix caching
-- **Calibrated, and shows its work** -- 30 published benchmarks next to the model's predictions, typical error about 11%
-- **Costs** -- electricity, amortisation and payback against the same tokens from a cloud API
+- **Calibrated, and shows its work** -- published benchmarks next to the model's predictions, typical error about 11%
+- **Costs** -- electricity, amortization and payback against the same tokens from a cloud API
 - **Shareable** -- one link reproduces the exact scenario; everything runs in the browser
 
 ---

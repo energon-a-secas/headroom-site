@@ -13,9 +13,17 @@ let raf = 0, lastFrame = 0, lastReport = 0;
 export const on = (ev, fn) => listeners[ev].add(fn);
 const emit = (ev) => listeners[ev].forEach((fn) => fn());
 
-/** Throw away the current run and start a fresh one from the scenario. */
-export function rebuild() {
+/** Simulated seconds a paused rebuild runs ahead, so every edit shows an answer. */
+const SETTLE_S = 1200;
+
+/**
+ * Throw away the current run and start a fresh one from the scenario. A
+ * paused rebuild settles 20 simulated minutes at once, so every edit shows an
+ * answer; `settle: false` starts at zero for watching the crowd arrive.
+ */
+export function rebuild({ settle = true } = {}) {
   state.sim = createSim(state.sc, { warmup: 60, sampleEvery: 10 });
+  if (settle && !state.running) state.sim.advance(SETTLE_S);
   state.report = state.sim.report(Math.max(1, state.sim.t));
   emit('report');
   emit('frame');

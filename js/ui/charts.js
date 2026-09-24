@@ -6,7 +6,7 @@
 import { viz } from '../viz.js';
 import { escHtml as e, fmtSec } from '../utils.js';
 
-const W = 320, H = 132, PAD_L = 36, PAD_R = 8;
+const W = 240, H = 100, PAD_L = 28, PAD_R = 6;
 
 /** Round an axis maximum up to 1, 2, 2.5 or 5 times a power of ten, so the midline tick is readable. */
 function niceCeil(x) {
@@ -37,7 +37,7 @@ export function renderCharts(el, series) {
     }
     box._pts = pts; box._spec = c;
     const last = pts.length ? pts[pts.length - 1].y : null;
-    const scale = last == null ? '' : `${c.id === 'tps' || c.id === 'watts' ? Math.round(last) : c.id === 'slo' ? Math.round(last) : last} ${c.unit}`;
+    const scale = last == null ? '' : `${Math.round(last)}${c.unit === '%' ? '%' : ` ${c.unit}`} now`;
     const max = c.max ?? niceCeil(Math.max(1, ...pts.map((p) => p.y)) * 1.05);
     box.querySelector('.chart__svg').innerHTML = pts.length > 1
       ? viz.line([{ name: c.title, color: 'var(--accent)', values: pts }], { title: c.title, scale, width: W, height: H, padL: PAD_L, padR: PAD_R, min: c.min, max, area: true, uid: `hr-${c.id}` })
@@ -91,8 +91,8 @@ function stackBar(title, parts, per) {
   const seg = PARTS.filter(([k]) => parts[k] > total * 0.002).map(([k, l, c]) =>
     `<span style="flex:${parts[k].toFixed(4)};background:${c}" title="${e(l)}: ${fmtSec(parts[k] / per)}"></span>`).join('');
   const legend = PARTS.map(([k, l, c]) => `<span class="lg"><i style="background:${c}"></i>${e(l)} ${fmtSec((parts[k] || 0) / per)}</span>`).join('');
-  return `<div class="panel" style="margin-top:12px"><div class="panel__title">${e(title)}</div>
-    <div class="stack" role="img" aria-label="${e(title)}: ${PARTS.map(([k, l]) => `${l} ${fmtSec((parts[k] || 0) / per)}`).join(', ')}">${seg}</div>
+  return `<div class="panel" style="margin-top:12px"><h3 class="panel__title">${e(title)}</h3>
+    <div class="bar-stack" role="img" aria-label="${e(title)}: ${PARTS.map(([k, l]) => `${l} ${fmtSec((parts[k] || 0) / per)}`).join(', ')}">${seg}</div>
     <div class="stack-legend">${legend}</div></div>`;
 }
 

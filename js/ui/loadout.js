@@ -19,7 +19,7 @@ const TRASH = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" strok
 export function renderLoadout(el, state) {
   const sc = state.sc;
   const eng = buildEngine(sc);
-  el.innerHTML = [boxPanel(sc, eng), modelPanel(sc, eng), runtimePanel(sc, eng), crowdPanel(sc, state), costPanel(sc)].join('');
+  el.innerHTML = [crowdPanel(sc, state), boxPanel(sc, eng), modelPanel(sc, eng), runtimePanel(sc, eng), costPanel(sc)].join('');
 }
 
 // ── Box ──
@@ -36,7 +36,7 @@ function boxPanel(sc, eng) {
   const custom = sc.box.id === 'custom' ? customEditor(b) : '';
   const tf = b.tflops;
   return `<section class="panel" aria-label="Box">
-    <div class="panel__title">Box <span class="muted">${e(b.status === 'shipping' ? `${b.confidence} specs` : b.status)}</span></div>
+    <h3 class="panel__title">Box <span class="muted">${e(b.status === 'shipping' ? (b.confidence === 'measured' ? 'published specs' : 'estimated specs') : b.status)}</span></h3>
     <div class="field">${select}</div>
     <div class="row">${count}${mode}</div>
     ${sc.box.count > 1 && sc.box.mode === 'split' && !b.pairable ? `<p class="warnline">These boxes split a model over ${e(b.link.name)}: every layer waits on the network.</p>` : ''}
@@ -93,7 +93,7 @@ function modelPanel(sc, eng) {
       <dt>Capability</dt><dd title="Coarse editorial tier, 1 to 5">${stars} ${s.tier.toFixed(1)}</dd>
     </dl>`;
   return `<section class="panel" aria-label="Model">
-    <div class="panel__title">Model</div>
+    <h3 class="panel__title">Model</h3>
     <div class="field">${select}</div>
     <div class="row">${quant}${kv}</div>
     <div class="field" style="margin-top:8px">${ctx}</div>
@@ -117,11 +117,11 @@ function runtimePanel(sc, eng) {
       <label class="field"><span>Context per slot</span><select class="select" data-k="rt.ctxPerSlot">${[4096, 8192, 16384, 32768, 65536, 131072].map((n) => opt(n, fmtK(n), (o.ctxPerSlot ?? runtimeById(rt.id).ctxPerSlot) === n)).join('')}</select></label>
     </div>`;
   } else {
-    knobs = `<label class="field"><span>Most sequences per batch</span><select class="select" data-k="rt.maxBatch">${[8, 16, 32, 64, 128, 256].map((n) => opt(n, `${n}`, (o.maxBatch ?? runtimeById(rt.id).maxBatch) === n)).join('')}</select></label>`;
+    knobs = `<label class="field"><span>Max sequences per batch</span><select class="select" data-k="rt.maxBatch">${[8, 16, 32, 64, 128, 256].map((n) => opt(n, `${n}`, (o.maxBatch ?? runtimeById(rt.id).maxBatch) === n)).join('')}</select></label>`;
   }
   const cache = `<label class="check"><input type="checkbox" data-k="rt.prefixCache"${(o.prefixCache ?? rt.prefixCache) ? ' checked' : ''}> Prefix caching</label>`;
   return `<section class="panel" aria-label="Inference server">
-    <div class="panel__title">Server software</div>
+    <h3 class="panel__title">Server software</h3>
     <div class="field">${select}</div>
     ${knobs}
     ${cache}
@@ -144,10 +144,10 @@ function crowdPanel(sc, state) {
     `<button type="button" class="chip" data-crowd="${k}">${e(c.label)}</button>`).join('')}</div>`;
   const total = sc.groups.reduce((a, g) => a + g.count, 0);
   return `<section class="panel" aria-label="Crowd">
-    <div class="panel__title">Crowd <span class="muted">${fmtInt(total)} users</span></div>
+    <h3 class="panel__title">Crowd <span class="muted">${fmtInt(total)} users</span></h3>
     ${locked ? '<p class="note" style="margin:0 0 10px">The mission sets the crowd. Tune the box, model and server.</p>' : ''}
     ${presets}
-    <div class="${locked ? 'locked' : ''}">
+    <div class="${locked ? 'locked' : ''}"${locked ? ' inert' : ''}>
       ${sc.groups.map((g, i) => groupEditor(g, i, sc.groups.length)).join('')}
       <button type="button" class="btn btn--ghost btn--sm btn--block" data-act="add-group"${sc.groups.length >= 8 ? ' disabled' : ''}>Add a group</button>
     </div>
@@ -191,7 +191,7 @@ function costPanel(sc) {
       <div class="row">${f('kwh', 'Electricity $/kWh', E.kwh, 0.01)}${f('hours', 'Busy hours a day', E.hours, 1)}</div>
       <div class="row">${f('cloudIn', 'Cloud $ per M input', E.cloudIn, 0.05)}${f('cloudOut', 'Cloud $ per M output', E.cloudOut, 0.05)}</div>
       ${f('years', 'Years to pay off the box', E.years, 1)}
-      <p class="note">Cloud prices default to a typical hosted open-weight model of this class. Set them to your own API bill to see payback against it.</p>
+      <p class="note">Cloud prices default to $0.40 per million input and $1.60 per million output tokens. Set them to your own API bill to see payback against it.</p>
     </div>
   </details>`;
 }

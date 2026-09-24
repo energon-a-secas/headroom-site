@@ -8,7 +8,7 @@ import { singleUserSpeeds, fmtK } from './perf.js';
 
 const G = 1e9;
 
-/** Defaults: $/kWh, amortisation years, busy hours a day, cloud $/M tokens in and out. */
+/** Defaults: $/kWh, amortization years, busy hours a day, cloud $/M tokens in and out. */
 export const DEFAULT_ECON = { kwh: 0.17, years: 3, hours: 8, cloudIn: 0.4, cloudOut: 1.6 };
 
 const pct = (a, p) => (a.length ? percentile(a, p) : null);
@@ -157,9 +157,10 @@ function judge({ passRate, util, tot, bottleneck }) {
   if (passRate === null) return { id: 'idle', label: 'No answers yet', text: 'Nobody finished a request in the measured window. Run longer, or check the context window.' };
   const p = Math.round(passRate * 100);
   if (passRate < 0.8) return { id: 'overloaded', label: 'Overloaded', text: `Only ${p}% of answers met their target. ${bottleneck.label} is the limit.` };
-  if (passRate < 0.95 || util.busy > 0.85) return { id: 'tight', label: 'Tight', text: `${p}% of answers on target with the box ${Math.round(util.busy * 100)}% busy. A few more users will tip it over.` };
+  if (passRate < 0.95) return { id: 'tight', label: 'Tight', text: `${p}% of answers on target, short of 95%. ${bottleneck.label} is the limit.` };
+  if (util.busy > 0.85) return { id: 'tight', label: 'Tight', text: `${p}% of answers on target with the box ${Math.round(util.busy * 100)}% busy. A few more users will tip it over.` };
   if (util.busy < 0.25) return { id: 'overkill', label: 'Overkill', text: `${p}% on target, but the box idles ${Math.round((1 - util.busy) * 100)}% of the time. A cheaper box may do the same job.` };
-  return { id: 'right', label: 'Right-sized', text: `${p}% of answers on target with the box ${Math.round(util.busy * 100)}% busy. Room to grow without waste.` };
+  return { id: 'right', label: 'Right-sized', text: `${p}% of answers on target with the box ${Math.round(util.busy * 100)}% busy. Room for more users before answers slip.` };
 }
 
 function economics(sim, groups, util, T) {
@@ -188,7 +189,7 @@ function fitAdvice(eng) {
   if (eng.fit.code === 'kv') return ['Lower the parallel slots or the context per slot, or quantize the KV cache to Q8.'];
   return [
     'Try a smaller quantization: Q4_K_M stores about 4.9 bits per weight, a third of FP16.',
-    eng.box.pairable ? 'Pair two boxes over their 200 Gb/s link and split the model across them.' : 'Pick a box with more memory, or split the model across two boxes (slow on a 10 GbE link).',
+    eng.box.pairable ? `Pair two boxes over ${eng.box.link.name} and split the model across them.` : 'Pick a box with more memory, or split the model across two boxes (slow on a 10 GbE link).',
     'Or pick a mixture-of-experts model with a similar capability tier and fewer total parameters.',
   ];
 }
@@ -208,14 +209,17 @@ function advise(eng, b, util, groups, verdict) {
     case 'bandwidth':
       out.push(`Generation is limited by memory bandwidth: one token reads about ${perStepGB.toFixed(1)} GB. A lower quant, a mixture-of-experts model or more GB/s helps; more TFLOPS does not.`);
       break;
-    case 'compute': case 'prefill':
+    case 'compute':
+      out.push('Generation is compute-bound at this batch size. A lower-precision format, or more tensor TFLOPS, helps.');
+      break;
+    case 'prefill':
       out.push(`Prompt reading is compute-bound (${Math.round(util.cacheHit * 100)}% of prompt tokens came from cache). Shorter prompts, prefix caching, or more tensor TFLOPS help.`);
       break;
     case 'link':
       out.push('The link is the bottleneck. Send tokens in WebSocket batches instead of one event each, send whole answers, or move these users to a wired link.');
       break;
     case 'client':
-      out.push('The device is the slowest step. Keep answers short and render once on e-ink.');
+      out.push('The device is the slowest step. Keep answers short. On e-ink, send the whole answer and refresh once.');
       break;
     case 'context':
       out.push(eng.rt.batching === 'slots'

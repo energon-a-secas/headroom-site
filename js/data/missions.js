@@ -50,7 +50,7 @@ export const MISSIONS = [
     story: 'Eight smart speakers around a large house. Speech-to-text and text-to-speech run on the speakers; the box only has to start talking fast.',
     groups: [{ persona: 'voice', count: 8, client: 'speaker', link: 'wifi', distanceKm: 0.03 }],
     goal: 0.95, budget: 3000, minTier: 2, duration: 1200, par: 2200,
-    hint: 'Time to first token is everything. A small fast model on a modest box can beat a giant one.',
+    hint: 'Only time to first token counts here. A small fast model on a modest box can beat a giant one.',
   },
   {
     id: 'cabin', title: 'Off-grid cabin over LoRa',
@@ -72,7 +72,7 @@ export const MISSIONS = [
   },
   {
     id: 'archivist', title: 'Overnight archivist',
-    story: 'A small firm wants 20,000 documents summarised before morning: ten hours, so at least 2,000 an hour, with nobody watching.',
+    story: 'A small firm wants 20,000 documents summarized before morning: ten hours, so at least 2,000 an hour, with nobody watching.',
     groups: [{ persona: 'batch', count: 24, client: 'ide', link: 'lan', distanceKm: 0 }],
     goal: 0.95, budget: 5000, minTier: 3, duration: 1200, perHour: 2000, par: 3500,
     hint: 'Pure throughput. Big batches, a paged runtime and a model that decodes cheaply per token.',

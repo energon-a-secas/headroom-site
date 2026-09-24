@@ -11,7 +11,7 @@ const ratio = (model, measured) => {
   if (!measured) return '';
   const r = model / measured;
   const txt = `${r >= 1 ? '+' : ''}${Math.round((r - 1) * 100)}%`;
-  return `<span class="${Math.abs(r - 1) <= 0.25 ? '' : 'muted'}">${txt}</span>`;
+  return `<span class="${Math.abs(r - 1) <= 0.25 ? '' : 'flag'}">${txt}</span>`;
 };
 
 export function renderMethod(calEl, catEl) {
