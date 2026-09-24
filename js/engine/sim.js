@@ -16,7 +16,7 @@ import { buildEngine } from './perf.js';
 import { makeServer, admit, plan, finish, dropQueued } from './server.js';
 import { makeLink, transmit, requestBytes, streamBurst, answerBytes } from './network.js';
 import { makeHeap } from './heap.js';
-import { makeRng } from './rng.js';
+import { makeRng, hashSeed } from './rng.js';
 import { personaById, clientById } from '../data/crowd.js';
 import { buildReport } from './report.js';
 
@@ -47,7 +47,10 @@ export function createSim(sc, opts = {}) {
   };
   const groups = sc.groups.map((g, gi) => ({
     gi, def: g, persona: persona(g), client: clientById(g.client),
-    link: makeLink(g, !!sc.unlimitedLinks), stats: groupStats(), users: [], unserved: 0, offReason: '',
+    // Each link draws its own losses, so a lossy link does not reshuffle
+    // every other group's token counts.
+    link: makeLink(g, !!sc.unlimitedLinks, makeRng(hashSeed(`${sc.seed || 7}:link:${gi}`))),
+    stats: groupStats(), users: [], unserved: 0, offReason: '',
   }));
 
   const nextBell = (t, P) => {
@@ -138,7 +141,7 @@ export function createSim(sc, opts = {}) {
     r.tFirstVisibleServer = t;
     if (!r.stream) return;
     const b = streamBurst(G.link, 1, 0);
-    r.tFirstDelivered = r.tLastDelivered = transmit(G.link, t, b.bytes, b.events);
+    r.tFirstDelivered = r.tLastDelivered = Math.max(r.tLastDelivered || 0, transmit(G.link, t, b.bytes, b.events));
     if (G.client.mode === 'stream') r.tFirstVisible = r.tFirstDelivered + (G.client.renderMs + G.client.pipelineMs / 2) / 1000;
   }
 
@@ -150,7 +153,7 @@ export function createSim(sc, opts = {}) {
       r.tFirstServer = t;
       users[r.uid].state = U.DECODE;
       if (r.firstIdx <= 1) markVisible(r, t);
-      else if (r.stream) r.tLastDelivered = transmit(G.link, t, streamBurst(G.link, 1, 0).bytes, 1);
+      else if (r.stream) r.tLastDelivered = Math.max(r.tLastDelivered || 0, transmit(G.link, t, streamBurst(G.link, 1, 0).bytes, 1));
     },
     onTokens(r, k, t0, t1) {
       // Reasoning, a tool call or a speech buffer come before the first word:
@@ -162,7 +165,9 @@ export function createSim(sc, opts = {}) {
       if (!r.stream) return;
       const L = groups[r.gi].link;
       const b = streamBurst(L, k, t1 - t0);
-      r.tLastDelivered = transmit(L, t1, b.bytes, b.events);
+      // One connection delivers in order: a burst held up by a lost packet
+      // holds up everything behind it.
+      r.tLastDelivered = Math.max(r.tLastDelivered || 0, transmit(L, t1, b.bytes, b.events));
     },
     onDone(r, t) {
       const G = groups[r.gi], C = G.client;
@@ -192,7 +197,10 @@ export function createSim(sc, opts = {}) {
     const G = groups[u.gi], P = G.persona;
     const prompt = Math.max(1, Math.round(rng.lognormal(P.prompt, 0.6)));
     const context = P.context ? Math.max(1, Math.round(rng.lognormal(P.context, 0.35))) : 0;
-    const visible = Math.max(4, Math.round(rng.lognormal(P.output, 0.5)));
+    // A translation or a summary is as long as what it is made from.
+    const visible = P.outRatio
+      ? Math.max(4, Math.round((prompt + context) * P.outRatio * rng.lognormal(1, 0.12)))
+      : Math.max(4, Math.round(rng.lognormal(P.output, 0.5)));
     // A reasoning model writes its hidden thinking first; a device may also
     // need a tool call or a speech buffer before the first word exists.
     const hidden = Math.max(P.reason || 0, eng.model.reasons?.min || 0);

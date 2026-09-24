@@ -11,7 +11,7 @@ import { renderMissions, renderMissionBar } from './ui/missions.js';
 import { renderCompare, renderCompareLead } from './ui/compare.js';
 import { renderMethod } from './ui/method.js';
 import { renderLocalSetups } from './ui/setups.js';
-import { LABELS } from './engine/report.js';
+import { LABELS, lowerLabel } from './engine/report.js';
 
 const TABS = ['sandbox', 'setups', 'missions', 'compare', 'method'];
 
@@ -59,7 +59,7 @@ export function renderRedline() {
   const R = state.redline;
   if (!R.busy && !R.result) { el.hidden = true; return; }
   el.hidden = false;
-  const probes = `<div class="probes">${R.probes.map((p) => `<span class="probe ${p.ok ? 'ok' : 'no'}" title="${p.ok ? 'passes' : 'fails'}${p.bottleneck ? `: ${e(LABELS[p.bottleneck] || p.bottleneck)}` : ''}">${fmtInt(p.n)} users ${p.ok ? '✓' : `✗ ${e((LABELS[p.bottleneck] || '').toLowerCase() || fmtPct(p.pass))}`}</span>`).join('')}</div>`;
+  const probes = `<div class="probes">${R.probes.map((p) => `<span class="probe ${p.ok ? 'ok' : 'no'}" title="${p.ok ? 'passes' : 'fails'}${p.bottleneck ? `: ${e(LABELS[p.bottleneck] || p.bottleneck)}` : ''}">${fmtInt(p.n)} users ${p.ok ? '✓' : `✗ ${e(lowerLabel(p.bottleneck) || fmtPct(p.pass))}`}</span>`).join('')}</div>`;
   if (R.busy) {
     el.innerHTML = `<div class="panel"><h3 class="panel__title">Finding the redline</h3><p class="note">Doubling the crowd until answers fail, then narrowing in. Each probe is a full simulated run.</p>${probes}</div>`;
     return;

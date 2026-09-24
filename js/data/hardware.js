@@ -8,6 +8,9 @@
 //   tflops      dense tensor throughput by precision (sparse figures halved).
 //               Apple publishes none: those are estimates backed out of
 //               measured prompt speed, so they carry `confidence: estimate`.
+//               GeForce cards run FP16 math at full rate only with FP16
+//               accumulate, which llama.cpp's kernels use; PyTorch-based
+//               servers accumulate in FP32 at half that, listed as `bf16`.
 //   eff.bw      share of the runtime's bandwidth efficiency this platform reaches
 //   eff.compute share of the runtime's compute efficiency this platform reaches
 //   eff.step    fixed per-iteration overhead multiplier (host CPU, launch latency)
@@ -99,10 +102,20 @@ export const BOXES = [
   },
   {
     id: 'mac-mini-m5pro', name: 'Mac mini M5 Pro 64 GB', short: 'M5 Pro 64', maker: 'Apple', chip: 'M5 Pro, 20-core GPU',
-    platform: 'metal', status: 'shipping', priceUsd: 2199, priceAsOf: ASOF,
-    priceNote: 'Price estimated from the M4 Pro 64 GB it replaced; Apple cut 64 GB M4 Pro options in May 2026.',
+    platform: 'metal', status: 'shipping', priceUsd: 2299, priceAsOf: ASOF,
+    priceNote: 'The M5 Pro Mac mini starts at $1,699 with 24 GB (Apple Store, 2026-09-24); the 64 GB price assumes the M4 Pro\'s $600 step to 64 GB. Apple lists 6 W idle and 145 W maximum; inference draws less than the maximum.',
     memGB: 64, usableGB: 50, bwGBs: 307, tflops: { fp16: 44, fp8: 44, fp4: 44 },
-    eff: { bw: 1.0, compute: 1, step: 1, moeM0: 30 }, idleW: 5, loadW: 90,
+    eff: { bw: 1.0, compute: 1, step: 1, moeM0: 30 }, idleW: 6, loadW: 110,
+    net: '1 GbE (10 GbE option), Thunderbolt 5, Wi-Fi 7',
+    link: { name: 'Thunderbolt 5 with RDMA', latencyUs: 15, gbps: 80 }, pairable: true,
+    confidence: 'estimate', form: 'mini',
+  },
+  {
+    id: 'mac-mini-m5pro-24', name: 'Mac mini M5 Pro 24 GB', short: 'M5 Pro 24', maker: 'Apple', chip: 'M5 Pro, 20-core GPU',
+    platform: 'metal', status: 'shipping', priceUsd: 1699, priceAsOf: ASOF,
+    priceNote: 'Apple Store price, 2026-09-24. macOS lets the GPU use about two thirds of memory on Macs this size, so about 16 GB holds the model and its KV cache.',
+    memGB: 24, usableGB: 16, bwGBs: 307, tflops: { fp16: 44, fp8: 44, fp4: 44 },
+    eff: { bw: 1.0, compute: 1, step: 1, moeM0: 30 }, idleW: 5, loadW: 100,
     net: '1 GbE (10 GbE option), Thunderbolt 5, Wi-Fi 7',
     link: { name: 'Thunderbolt 5 with RDMA', latencyUs: 15, gbps: 80 }, pairable: true,
     confidence: 'estimate', form: 'mini',
@@ -110,8 +123,8 @@ export const BOXES = [
   {
     id: 'rtx-5090', name: 'Desktop with RTX 5090', short: 'RTX 5090 PC', maker: 'NVIDIA + your PC', chip: 'GeForce RTX 5090, 32 GB GDDR7',
     platform: 'cuda', lowPrecision: ['fp8'], status: 'shipping', priceUsd: 5700, priceAsOf: ASOF,
-    priceNote: 'GPU $4,200 at its 90-day low (MSRP $1,999; Amazon $6,699 new) plus about $1,500 for the host PC.',
-    memGB: 32, usableGB: 30, bwGBs: 1792, tflops: { fp16: 419, fp8: 419, fp4: 1676 },
+    priceNote: 'GPU $4,200 at its 90-day low (MSRP $1,999; Amazon $6,699 new) plus about $1,500 for the host PC. Tensor rates are the Blackwell whitepaper\'s dense figures: FP16 419 with FP16 accumulate, 209.5 with FP32 accumulate.',
+    memGB: 32, usableGB: 30, bwGBs: 1792, tflops: { fp16: 419, bf16: 209.5, fp8: 419, fp4: 1676 },
     eff: { bw: 1.0, compute: 0.96, step: 0.5, moeM0: 110 }, idleW: 75, loadW: 650,
     net: 'Whatever the host PC has, usually 2.5 to 10 GbE',
     link: { name: '10 GbE', latencyUs: 45, gbps: 10 }, pairable: false,

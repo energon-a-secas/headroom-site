@@ -33,7 +33,8 @@ export function makeServer(eng, idx) {
     host: new Map(), hostBytes: 0,
     cache: new Map(), cacheBytes: 0, pinnedBytes: 0,
     stats: { busyS: 0, memS: 0, compS: 0, bytes: 0, flops: 0, tokOut: 0, tokPrefill: 0, tokCached: 0,
-      batchTime: 0, blockedSlots: 0, blockedKv: 0, iters: 0, steps: 0, kvBytes: 0, memBoundS: 0, compBoundS: 0 },
+      batchTime: 0, blockedSlots: 0, blockedKv: 0, iters: 0, steps: 0, kvBytes: 0, memBoundS: 0, compBoundS: 0,
+      prefillS: 0, overS: 0 },
   };
 }
 
@@ -116,6 +117,8 @@ export function admit(eng, srv, t, hooks) {
     const r = srv.queue[0];
     if (srv.running.length >= eng.maxBatch) return 'slots';
     const need = reserveBytes(eng, srv, r);
+    // A pooled slot server admits by memory as well as by slot.
+    if (srv.slotted && eng.pooled && srv.kvUsed + need > eng.kvPool) return 'kv';
     if (!srv.slotted) {
       const prefixNew = eng.rt.prefixCache && !srv.cache.has(`p:${r.prefixKey}`) ? kvBytes(eng.fp, r.prefix) : 0;
       if (srv.kvUsed + srv.pinnedBytes + prefixNew + need > eng.kvPool) {
@@ -165,6 +168,10 @@ export function plan(eng, srv, t, horizon) {
     pAttn += n * attnFlops(fp, r.ctx + n / 2);
   }
   let st = stepTime(eng, decode.length, kvRead, attn, pTok, pAttn);
+  // The share of this iteration that reading prompts added, so the report
+  // can tell a queue behind long prompts from one behind generation.
+  let prefillFrac = 0;
+  if (parts.length) prefillFrac = decode.length ? Math.max(0, 1 - stepTime(eng, decode.length, kvRead, attn).t / st.t) : 1;
   let k = 1;
   // Nothing can change before the next completion or external event, so a
   // blocked queue does not stop fusion: admission only reopens on a completion.
@@ -178,7 +185,7 @@ export function plan(eng, srv, t, horizon) {
       st = stepTime(eng, decode.length, kvRead + decode.length * fp.kvFull * grow, attn + decode.length * fp.attnFull * grow, 0, 0);
     }
   }
-  srv.iter = { t0: t, k, dur: k * st.t, decode, parts, st, kvRead: kvRead + (k > 1 ? decode.length * fp.kvFull * (k - 1) / 2 : 0) };
+  srv.iter = { t0: t, k, dur: k * st.t, decode, parts, st, prefillFrac, kvRead: kvRead + (k > 1 ? decode.length * fp.kvFull * (k - 1) / 2 : 0) };
   return srv.iter.dur;
 }
 
@@ -192,6 +199,10 @@ export function finish(eng, srv, t1, hooks) {
   s.bytes += it.k * it.st.bytes; s.flops += it.k * it.st.flops;
   s.kvBytes += it.k * it.kvRead;
   if (it.st.tMem >= it.st.tComp) s.memBoundS += it.dur; else s.compBoundS += it.dur;
+  s.prefillS += it.dur * it.prefillFrac;
+  // Time the step spends on fixed costs (launches, scheduling, sampling)
+  // beyond reading memory or doing the math.
+  s.overS += it.k * Math.max(0, it.st.t - Math.max(it.st.tMem, it.st.tComp));
   s.batchTime += it.decode.length * it.dur;
 
   const done = [];

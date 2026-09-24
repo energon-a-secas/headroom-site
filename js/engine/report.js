@@ -5,6 +5,8 @@
 
 import { percentile } from './rng.js';
 import { singleUserSpeeds, fmtK } from './perf.js';
+import { quantsFor } from '../data/models.js';
+import { runtimesFor } from '../data/runtimes.js';
 
 const G = 1e9;
 
@@ -23,6 +25,7 @@ export function engineSummary(eng) {
     kvPerTokKB: eng.fp.kvFull / 1024, maxBatch: eng.maxBatch, slotCtx: eng.slotCtx,
     batching: eng.rt.batching, tier: eng.tier, priceUsd: eng.priceUsd,
     idleW: eng.idleW, loadW: eng.loadW, dtype: eng.dtype,
+    boxId: eng.box.id, status: eng.box.status, pairable: !!eng.box.pairable, splitMode: eng.splitMode,
     ...speeds,
   };
 }
@@ -43,16 +46,26 @@ function groupSummary(sim, Gp, T) {
     if (phase) blame[phase] += sim.t - Math.max(u.req.tSend, sim.warmup);
   }
   const n = S.n + late;
+  const ttft = { p50: pct(S.ttft, 0.5), p95: pct(S.ttft, 0.95) };
+  const e2e = { p50: pct(S.e2e, 0.5), p95: pct(S.e2e, 0.95) };
+  const tps = { p50: pct(S.tps, 0.5), p5: pct(S.tps, 0.05) };
+  // How close the slow tail runs to its limits: 1 means the slowest 5% of
+  // answers arrive exactly at the target.
+  let strain = 0;
+  if (P.slo.ttft && ttft.p95 !== null) strain = Math.max(strain, ttft.p95 / P.slo.ttft);
+  if (P.slo.e2e && e2e.p95 !== null) strain = Math.max(strain, e2e.p95 / P.slo.e2e);
+  if (P.slo.tps && tps.p5) strain = Math.max(strain, P.slo.tps / tps.p5);
   return {
-    gi: Gp.gi, persona: P.name, personaId: P.id, client: Gp.client.name, link: Gp.link.def.name,
+    gi: Gp.gi, persona: P.name, personaId: P.id, client: Gp.client.name, clientNoun: Gp.client.noun || Gp.client.name, link: Gp.link.def.name,
     linkId: Gp.link.def.id, maxClients: Gp.link.maxClients,
     waitsForThinking: !Gp.client.thinking,
+    // A worker that asks again the moment it is answered keeps the box busy
+    // by design; its busy time says nothing about headroom for people.
+    background: !P.think && !P.readTps,
     count: Gp.users.length, unserved: Gp.unserved, offReason: Gp.offReason,
     n, pass: S.pass, miss: S.miss + late, late,
     passPct: n ? S.pass / n : null,
-    ttft: { p50: pct(S.ttft, 0.5), p95: pct(S.ttft, 0.95) },
-    e2e: { p50: pct(S.e2e, 0.5), p95: pct(S.e2e, 0.95) },
-    tps: { p50: pct(S.tps, 0.5), p5: pct(S.tps, 0.05) },
+    ttft, e2e, tps, strain,
     fail: { ...S.fail }, truncated: S.truncated,
     perHour: S.n / T * 3600, tokIn: S.tokIn, tokOut: S.tokOut,
     blame, time: { ...S.time },
@@ -92,7 +105,11 @@ export function buildReport(sim, duration) {
   const intensity = busy > 0 ? Math.min(1, Math.max(bwUtil, computeUtil) / busy) : 0;
   const avgW = eng.idleW + (eng.loadW - eng.idleW) * Math.min(1, busy) * (0.55 + 0.45 * intensity);
   const kvShare = sum((s) => s.bytes) ? sum((s) => s.kvBytes) / sum((s) => s.bytes) : 0;
-  const util = { busy, bwUtil, computeUtil, memShare, kvPeak, kvShare, avgBatch, blockedSlots, blockedKv,
+  const prefillShare = busyS ? sum((s) => s.prefillS) / busyS : 0;
+  const overShare = busyS ? sum((s) => s.overS) / busyS : 0;
+  const steps = sum((s) => s.iters);
+  const overMs = steps ? (sum((s) => s.overS) / steps) * 1000 : 0;
+  const util = { busy, bwUtil, computeUtil, memShare, kvPeak, kvShare, avgBatch, blockedSlots, blockedKv, prefillShare, overShare, overMs,
     cacheHit: cached + prefilled ? cached / (cached + prefilled) : 0, tokPerS: tokOut / D, avgW };
 
   // ── Outcome ──
@@ -105,7 +122,7 @@ export function buildReport(sim, duration) {
     for (const k in g.fail) fails[k] = (fails[k] || 0) + g.fail[k];
   }
   const bottleneck = findBottleneck({ eng, groups, util, blame, fails, passRate, tot });
-  const verdict = judge({ passRate, util, tot, bottleneck, groups });
+  const verdict = judge({ eng, passRate, util, tot, bottleneck, groups });
   const econ = economics(sim, groups, util, T);
   return {
     ok: true, engine: summary, groups, util, blame, fails, passRate,
@@ -139,20 +156,28 @@ function findBottleneck({ eng, groups, util, blame, fails, passRate, tot }) {
     if (totalBlame > 0) top = Object.entries(blame).sort((a, b) => b[1] - a[1])[0][0];
     if (gaveUp > 0 && gaveUp >= 0.3 * (tot.n - tot.pass)) top = 'queue';
     const share = totalBlame ? blame[top] / totalBlame : 1;
+    const overhead = () => mk('runtime', share, `${eng.rt.name} spends about ${util.overMs.toFixed(1)} ms of every step on fixed work (scheduling, kernel launches, sampling), ${Math.round(util.overShare * 100)}% of the time the box was busy.`);
     if (top === 'queue') {
       if (util.blockedKv > util.blockedSlots && util.blockedKv > 0.02) return mk('kv', share, `Requests waited for KV cache space: memory for conversations peaked at ${Math.round(util.kvPeak * 100)}% of the pool.`);
       if (util.blockedSlots > 0.02) return mk('slots', share, `Requests waited for one of ${eng.maxBatch} ${eng.rt.batching === 'slots' ? 'parallel slots' : 'batch places'}.`);
+      // The queue grew because the box was busy; say busy doing what.
+      if (util.prefillShare > 0.5) return mk('prefill', share, `The box ran ${Math.round(util.busy * 100)}% busy, and reading prompts took ${Math.round(util.prefillShare * 100)}% of that time. Prompt processing is compute-bound.`);
+      if (util.overShare > 0.4) return overhead();
       return mk(util.memShare > 0.5 ? 'bandwidth' : 'compute', share, `The box ran ${Math.round(util.busy * 100)}% busy and the queue grew faster than it drained.`);
     }
     if (top === 'prefill') return mk('prefill', share, 'Reading long prompts took most of the time. Prompt processing is compute-bound.');
-    if (top === 'decode') return mk(util.memShare > 0.5 ? 'bandwidth' : 'compute', share, `Generating answers took most of the time, with an average batch of ${util.avgBatch.toFixed(1)}.`);
+    if (top === 'decode') {
+      if (util.blockedKv > 0.1 && util.kvPeak > 0.9) return mk('kv', share, `Generation was slow because the KV cache was full ${Math.round(util.blockedKv * 100)}% of the time, so new requests waited while running ones finished.`);
+      if (util.overShare > 0.4) return overhead();
+      return mk(util.memShare > 0.5 ? 'bandwidth' : 'compute', share, `Generating answers took most of the time, with an average batch of ${util.avgBatch.toFixed(1)}.`);
+    }
     if (top === 'net') return mk('link', share, 'Time on the wire dominated: round trips, airtime or a shared channel queue.');
     return mk('client', share, 'The client device took longest: slow screen refreshes or speech processing.');
   }
   const near = [
     ['bandwidth', util.bwUtil], ['compute', util.computeUtil], ['kv', util.kvPeak], ['slots', util.blockedSlots * 4],
   ].sort((a, b) => b[1] - a[1])[0];
-  return { id: 'none', label: 'Nothing yet', near: near[0], text: `Every group is inside its targets. First to run out would be ${LABELS[near[0]].toLowerCase()} (${Math.round(near[1] * 100)}% used).` };
+  return { id: 'none', label: 'Nothing yet', near: near[0], text: `Every group is inside its targets. First to run out would be ${lowerLabel(near[0])} (${Math.round(near[1] * 100)}% used).` };
 }
 
 /** A tier never rounds up across a floor: 4.45 shows as 4.45, not 4.5. */
@@ -163,22 +188,38 @@ export function fmtTier(t) {
 export const LABELS = {
   bandwidth: 'Memory bandwidth', compute: 'Compute', prefill: 'Prompt processing', kv: 'KV cache memory',
   slots: 'Parallel slots', link: 'Network link', client: 'Client device', connections: 'Connections',
-  context: 'Context window', none: 'Nothing yet',
+  context: 'Context window', runtime: 'Server overhead', none: 'Nothing yet',
 };
+/** A label mid-sentence: 'memory bandwidth', but 'KV cache memory' keeps its capitals. */
+export const lowerLabel = (id) => (LABELS[id] || '').replace(/^[A-Z](?=[a-z])/, (c) => c.toLowerCase());
 const mk = (id, share, text) => ({ id, label: LABELS[id], share, text });
 
-function judge({ passRate, util, tot, bottleneck, groups }) {
+function judge({ eng, passRate, util, tot, bottleneck, groups }) {
   if (tot.unserved > 0) return { id: 'overloaded', label: 'Overloaded', text: `${tot.unserved} of ${tot.users} users could not connect at all.` };
   if (passRate === null) return { id: 'idle', label: 'No answers yet', text: 'Nobody finished a request in the measured window. Run longer, or check the context window.' };
   const p = Math.round(passRate * 100);
   if (passRate < 0.8) return { id: 'overloaded', label: 'Overloaded', text: `Only ${p}% of answers met their target. ${bottleneck.label} is the limit.` };
   if (passRate < 0.95) return { id: 'tight', label: 'Tight', text: `${p}% of answers on target, short of 95%. ${bottleneck.label} is the limit.` };
   // A pooled share can hide one group that is failing behind an easy one.
-  const worst = groups.filter((g) => g.n > 0 && g.passPct !== null).sort((a, b) => a.passPct - b.passPct)[0];
+  const live = groups.filter((g) => g.n > 0 && g.passPct !== null);
+  const worst = [...live].sort((a, b) => a.passPct - b.passPct)[0];
   if (worst && worst.passPct < 0.95) return { id: 'tight', label: 'Tight', text: `${p}% overall, but ${worst.count} x ${worst.persona} get only ${Math.round(worst.passPct * 100)}% on target.` };
-  if (util.busy > 0.85) return { id: 'tight', label: 'Tight', text: `${p}% of answers on target with the box ${Math.round(util.busy * 100)}% busy. A few more users will tip it over.` };
-  if (util.busy < 0.25) return { id: 'overkill', label: 'Overkill', text: `${p}% on target, but the box idles ${Math.round((1 - util.busy) * 100)}% of the time. A cheaper box may do the same job.` };
-  return { id: 'right', label: 'Right-sized', text: `${p}% of answers on target with the box ${Math.round(util.busy * 100)}% busy. Room for more users before answers slip.` };
+  // Headroom is how close the slow tail runs to its limits. Busy time alone
+  // misleads: a batching server is busy whenever anyone is generating, and a
+  // background worker keeps any box busy on purpose.
+  const people = live.filter((g) => !g.background);
+  const tightest = [...(people.length ? people : live)].sort((a, b) => b.strain - a.strain)[0];
+  const strain = tightest ? tightest.strain : 0;
+  const s = Math.round(strain * 100);
+  const bg = live.find((g) => g.background);
+  const busy = Math.round(util.busy * 100);
+  const full = util.avgBatch >= 0.8 * eng.maxBatch || util.blockedSlots > 0.05 || util.blockedKv > 0.05;
+  if (strain >= 0.8) return { id: 'tight', label: 'Tight', text: `${p}% of answers on target, but the slowest ${tightest.persona} answers already take ${s}% of the time allowed. A few more users will tip it over.` };
+  if (util.busy > 0.85 && full && !bg) return { id: 'tight', label: 'Tight', text: `${p}% of answers on target with the box ${busy}% busy and ${eng.rt.batching === 'slots' ? 'every slot' : 'the batch'} full. A few more users will queue.` };
+  if (util.busy < 0.25 && strain < 0.5) return { id: 'overkill', label: 'Overkill', text: `${p}% on target, but the box idles ${100 - busy}% of the time. A cheaper box may do the same job.` };
+  if (bg && people.length) return { id: 'right', label: 'Right-sized', text: `${p}% of answers on target. The ${bg.persona.toLowerCase()} keeps the box ${busy}% busy by design, and the slowest ${tightest.persona} answers take ${s}% of the time allowed.` };
+  if (bg) return { id: 'right', label: 'Right-sized', text: `${p}% of jobs on target. Workers that never pause keep any box busy, so throughput is the measure: ${Math.round(live.reduce((a, g) => a + g.perHour, 0)).toLocaleString('en-US')} jobs an hour.` };
+  return { id: 'right', label: 'Right-sized', text: `${p}% of answers on target with the box ${busy}% busy, and the slowest answers take ${s}% of the time allowed. Room for more users before answers slip.` };
 }
 
 function economics(sim, groups, util, T) {
@@ -202,14 +243,33 @@ function economics(sim, groups, util, T) {
   };
 }
 
+/** Is there a server on this box that admits by memory instead of by slot? */
+const hasPaged = (eng) => runtimesFor(eng.box.platform).some((r) => r.batching === 'paged');
+
+function kvStep(eng) {
+  if (eng.kv.id === 'f16') return 'quantize the KV cache to Q8 to fit twice the conversations';
+  if (eng.kv.id === 'q8') return 'quantize the KV cache to Q4 (at some cost in answer quality)';
+  return '';
+}
+
 function fitAdvice(eng) {
-  if (eng.fit.code === 'platform') return ['Pick a runtime that supports this box: llama.cpp runs on every platform.'];
-  if (eng.fit.code === 'kv') return ['Lower the parallel slots or the context per slot, or quantize the KV cache to Q8.'];
-  return [
-    'Try a smaller quantization: Q4_K_M stores about 4.9 bits per weight, a third of FP16.',
-    eng.box.pairable ? `Pair two boxes over ${eng.box.link.name} and split the model across them.` : 'Pick a box with more memory, or split the model across two boxes (slow on a 10 GbE link).',
-    'Or pick a mixture-of-experts model with a similar capability tier and fewer total parameters.',
-  ];
+  if (eng.fit.code === 'platform') return [`${eng.rt.name} does not run on ${eng.box.short}. llama.cpp runs on every platform.`];
+  if (eng.fit.code === 'kv') {
+    const k = kvStep(eng);
+    return [`Lower the parallel slots or the context per slot${k ? `, or ${k}` : ''}.`];
+  }
+  if (eng.fit.code === 'split') return [eng.fit.reason];
+  const out = [];
+  const smaller = quantsFor(eng.model).filter((q) => q.bits < eng.quant.bits).sort((a, b) => b.bits - a.bits)[0];
+  if (smaller) out.push(`Try a smaller quantization: ${smaller.label} stores about ${smaller.bits} bits per weight${smaller.tierLoss >= 0.45 ? ', at a noticeable cost in answer quality' : ''}.`);
+  else out.push(`${eng.model.name} ships as ${eng.quant.label} only, so there is no smaller file of it to try.`);
+  out.push(eng.box.pairable
+    ? `Pair two boxes over ${eng.box.link.name} and split the model across them.`
+    : 'Pick a box with more memory. This one cannot be paired to split a model.');
+  out.push(eng.model.moe
+    ? 'Or pick a model with fewer total parameters: capability tracks active parameters less than you might think.'
+    : 'Or pick a mixture-of-experts model with a similar capability tier and fewer total parameters.');
+  return out;
 }
 
 function advise(eng, b, util, groups, verdict) {
@@ -218,20 +278,33 @@ function advise(eng, b, util, groups, verdict) {
   switch (b.id) {
     case 'slots':
       out.push(eng.rt.batching === 'slots'
-        ? `Raise the parallel slots above ${eng.maxBatch}, or switch to a paged runtime (vLLM, SGLang) that admits by memory, not by slot count.`
+        ? `Raise the parallel slots above ${eng.maxBatch}${hasPaged(eng) ? ', or switch to a paged runtime (vLLM, SGLang) that admits by memory, not by slot count' : ''}.`
         : `Raise the batch limit above ${eng.maxBatch}; there is KV space to spare.`);
       break;
-    case 'kv':
-      out.push(`Quantize the KV cache to Q8 to fit twice the conversations, or cap the context. This model stores ${Math.round(eng.fp.kvFull / 1024)} KB per token.`);
+    case 'kv': {
+      const k = kvStep(eng);
+      out.push(`${k ? `${k[0].toUpperCase()}${k.slice(1)}, or cap the context` : 'Cap the context, or pick a model that stores less KV per token'}. This model stores ${Math.round(eng.fp.kvFull * eng.kv.bytes / 2 / 1024)} KB per token at ${eng.kv.label}.`);
       break;
+    }
     case 'bandwidth': {
       if (util.kvShare > 0.5) {
-        out.push(`Generation is limited by memory bandwidth, and most of it is conversation memory: each step reads more KV cache than weights. Quantize the KV cache to Q8, cap the context, or pick a model that stores less KV per token. A lower weight quant helps less.`);
+        const k = kvStep(eng);
+        out.push(`Generation is limited by memory bandwidth, and most of it is conversation memory: each step reads more KV cache than weights. ${k ? `${k[0].toUpperCase()}${k.slice(1)}, cap` : 'Cap'} the context, or pick a model that stores less KV per token. A lower weight quant helps less.`);
       } else {
-        out.push(`Generation is limited by memory bandwidth: one token reads about ${perStepGB.toFixed(1)} GB of weights. A lower quant, a mixture-of-experts model or more GB/s helps; more TFLOPS does not.`);
+        // Only suggest the levers this setup has not pulled already.
+        const levers = [];
+        if (eng.quant.bits > 5) levers.push('a lower quant');
+        if (!eng.model.moe) levers.push('a mixture-of-experts model');
+        else levers.push('a model with fewer active parameters');
+        levers.push('more GB/s');
+        const list = levers.join(', ').replace(/, ([^,]*)$/, ' or $1');
+        out.push(`Generation is limited by memory bandwidth: one token reads about ${perStepGB.toFixed(1)} GB of weights. ${list[0].toUpperCase()}${list.slice(1)} helps; more TFLOPS does not.`);
       }
       break;
     }
+    case 'runtime':
+      out.push(`Each step costs ${eng.rt.name} about ${util.overMs.toFixed(1)} ms before any math, and with little to batch that fixed cost sets the pace. A leaner server${eng.rt.id === 'trtllm' ? '' : ' (llama.cpp, TensorRT-LLM)'} or more users sharing each step helps; more GB/s does not.`);
+      break;
     case 'compute':
       out.push('Generation is compute-bound at this batch size. A lower-precision format, or more tensor TFLOPS, helps.');
       break;
@@ -239,6 +312,7 @@ function advise(eng, b, util, groups, verdict) {
       out.push(eng.rt.prefixCache
         ? `Prompt reading is compute-bound, and prefix caching is already on (${Math.round(util.cacheHit * 100)}% of prompt tokens came from cache). Shorter prompts, a model with fewer active parameters, or more tensor TFLOPS help.`
         : 'Prompt reading is compute-bound and prefix caching is off: turn it on so shared system prompts are read once.');
+      if (util.prefillShare > 0.5 && eng.rt.batching === 'slots' && eng.fp.model.moe && hasPaged(eng)) out.push(`${eng.rt.name} reads mixture-of-experts prompts far below the chip's peak; vLLM, SGLang or TensorRT-LLM batch the experts better.`);
       break;
     case 'link':
       out.push('The link is the bottleneck. Send tokens in WebSocket batches instead of one event each, send whole answers, or move these users to a wired link.');
@@ -248,7 +322,7 @@ function advise(eng, b, util, groups, verdict) {
       break;
     case 'context':
       out.push(eng.rt.batching === 'slots'
-        ? `Each slot holds ${fmtK(eng.slotCtx)} tokens. Raise the context per slot${eng.maxBatch > 1 ? ' (with fewer slots if memory is short)' : ''}, or use a paged runtime.`
+        ? `Each slot holds ${fmtK(eng.slotCtx)} tokens. Raise the context per slot${eng.maxBatch > 1 ? ' (with fewer slots if memory is short)' : ''}${hasPaged(eng) ? ', or use a paged runtime' : ''}.`
         : 'Raise the context cap, or trim what each request sends.');
       break;
     case 'connections':
@@ -259,7 +333,7 @@ function advise(eng, b, util, groups, verdict) {
   // A reasoning model thinks before every answer; a device that cannot show
   // that thinking waits for all of it before its first word.
   const lag = groups.find((g) => g.waitsForThinking && g.slo.ttft && g.passPct !== null && g.passPct < 0.95);
-  if (eng.model.reasons && lag) out.unshift(`${eng.model.name} always reasons before it answers, and a ${lag.client.toLowerCase()} cannot show thinking, so at least ${eng.model.reasons.min} hidden tokens come before the first word. Pick a model that answers straight away.`);
+  if (eng.model.reasons && lag) out.unshift(`${eng.model.name} always reasons before it answers, and a ${lag.clientNoun} cannot show thinking, so at least ${eng.model.reasons.min} hidden tokens come before the first word. Pick a model that answers straight away.`);
   if (verdict.id === 'overkill') out.push('Open Compare to see which cheaper boxes still pass this crowd.');
   if (eng.quant.tierLoss >= 0.45) out.push(`${eng.quant.label} costs noticeable answer quality; the capability tier drops to ${fmtTier(eng.tier)}.`);
   const trunc = groups.reduce((a, g) => a + g.truncated, 0);

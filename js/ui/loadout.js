@@ -159,7 +159,13 @@ function runtimePanel(sc, eng) {
   } else {
     knobs = `<label class="field"><span>Max sequences per batch</span><select class="select" data-k="rt.maxBatch">${[8, 16, 32, 64, 128, 256].map((n) => opt(n, `${n}`, (o.maxBatch ?? runtimeById(rt.id).maxBatch) === n)).join('')}</select></label>`;
   }
-  const cache = `<label class="check"><input type="checkbox" data-k="rt.prefixCache"${(o.prefixCache ?? rt.prefixCache) ? ' checked' : ''}> Prefix caching</label>`;
+  const cacheOn = o.prefixCache ?? rt.prefixCache;
+  let cache = `<label class="check"><input type="checkbox" data-k="rt.prefixCache"${cacheOn ? ' checked' : ''}> Prefix caching</label>`;
+  // Slot servers can park prompts that leave a slot in system RAM and restore them later.
+  if (rt.batching === 'slots' && runtimeById(rt.id).hostCacheGB !== undefined && cacheOn) {
+    const host = o.hostCacheGB ?? runtimeById(rt.id).hostCacheGB;
+    cache += `<label class="field" style="margin-top:8px"><span>Prompt cache in RAM</span><select class="select" data-k="rt.hostCacheGB">${[0, 8, 32].map((n) => opt(n, n ? `${n} GB` : 'Off', host === n)).join('')}</select></label>`;
+  }
   return `<section class="panel" aria-label="Inference server">
     <h3 class="panel__title">Server software</h3>
     ${eng.box.platform === 'metal' ? '<p class="note host-platform">macOS · Apple Metal</p>' : ''}

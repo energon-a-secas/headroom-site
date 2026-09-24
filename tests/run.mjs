@@ -91,6 +91,61 @@ test('mixture-of-experts batching scales less than dense', () => {
   return `MoE ${moe.toFixed(1)}x, dense ${dense.toFixed(1)}x from 1 to 32 users`;
 });
 
+// ── Rules added in v1.1 ──
+const mission = (id, over = {}) => {
+  const m = MISSIONS.find((x) => x.id === id), ps = { ...m.parSetup, ...over };
+  return [m, runScenario({ box: { id: ps.box, count: ps.count, mode: ps.mode }, model: { id: ps.model, quant: ps.quant, kv: ps.kv },
+    runtime: { id: ps.runtime, overrides: ps.overrides }, groups: m.groups, seed: 7 }, { duration: m.duration })];
+};
+
+test('a background batch keeps the box busy without making the verdict tight', () => {
+  const [, r] = mission('helpdesk-backfill');
+  assert(r.util.busy > 0.9 && r.verdict.id === 'right', `${Math.round(r.util.busy * 100)}% busy, verdict ${r.verdict.id}`);
+  return r.verdict.text;
+});
+
+test('llama.cpp splits a model by layer and gains no single-stream speed; vLLM splits by tensor and does', () => {
+  const e = (count, rt) => buildEngine({ box: { id: 'dgx-spark', count, mode: count > 1 ? 'split' : 'replica' }, model: { id: 'gpt-oss-120b', quant: 'mxfp4', kv: 'f16' }, runtime: { id: rt }, groups: [] });
+  const tps = (count, rt) => singleUserSpeeds(e(count, rt)).decodeTps;
+  assert(Math.abs(tps(2, 'llamacpp') / tps(1, 'llamacpp') - 1) < 0.05, `llama.cpp ${tps(1, 'llamacpp')} -> ${tps(2, 'llamacpp')}`);
+  assert(tps(2, 'vllm') > 1.25 * tps(1, 'vllm'), `vLLM ${tps(1, 'vllm')} -> ${tps(2, 'vllm')}`);
+  assert(e(2, 'ollama').fit.code === 'split', 'Ollama cannot split');
+  return `llama.cpp ${tps(1, 'llamacpp').toFixed(0)} -> ${tps(2, 'llamacpp').toFixed(0)} tok/s, vLLM ${tps(1, 'vllm').toFixed(0)} -> ${tps(2, 'vllm').toFixed(0)}`;
+});
+
+test('a 4-bit KV cache costs capability; an 8-bit one does not', () => {
+  const tier = (kv) => buildEngine({ ...sc(), model: { id: 'gpt-oss-120b', quant: 'mxfp4', kv } }).tier;
+  assert(tier('q8') === tier('f16') && tier('q4') < tier('f16') - 0.05, `f16 ${tier('f16')}, q8 ${tier('q8')}, q4 ${tier('q4')}`);
+});
+
+test('a lost packet stalls an internet path for a TCP recovery; Wi-Fi resends at the radio', () => {
+  const run = (link, km) => runScenario(sc({ model: { id: 'qwen3-next-80b', quant: 'q4', kv: 'f16' },
+    groups: [{ persona: 'chat', count: 10, client: 'browser', link, distanceKm: km }] }), { duration: 1200 }).groups[0].ttft;
+  const wifi = run('wifi', 0.01), geo = run('geo', 3000);
+  assert(wifi.p95 - wifi.p50 < 0.1 && geo.p95 - geo.p50 > 0.4, `Wi-Fi ${wifi.p50}/${wifi.p95} s, GEO ${geo.p50}/${geo.p95} s`);
+  return `first text p50/p95: Wi-Fi ${wifi.p50.toFixed(2)}/${wifi.p95.toFixed(2)} s, GEO ${geo.p50.toFixed(2)}/${geo.p95.toFixed(2)} s`;
+});
+
+test('mission stars need a box you can buy', () => {
+  const [m, custom] = mission('bookclub', { box: 'custom' });
+  const [, soon] = mission('bookclub', { box: 'rtx-spark-devbox', model: 'gpt-oss-120b', quant: 'mxfp4', runtime: 'vllm', overrides: {} });
+  for (const r of [custom, soon]) assert(scoreMission(m, r).stars === 0 && scoreMission(m, r).checks.some((c) => !c.ok && /custom box|not on sale/.test(c.text)), `${r.engine.box}: ${scoreMission(m, r).stars} stars`);
+});
+
+test("llama-server's slots share one context pool, so one long conversation fits where a fixed 16K slot would refuse it", () => {
+  const eng = buildEngine({ ...sc(), runtime: { id: 'llamacpp' } });
+  assert(eng.slotCtx === 4 * 16384, `longest request ${eng.slotCtx}`);
+  const r = runScenario(sc({ model: { id: 'qwen3-30b-a3b', quant: 'q4', kv: 'f16' }, runtime: { id: 'llamacpp' }, groups: CROWDS.monorepo.groups.map((g) => ({ ...g, count: 1 })) }), { duration: 900 });
+  assert(!r.fails.context, `refused ${r.fails.context}`);
+});
+
+test('a translation is as long as the article it translates', () => {
+  const [, r] = mission('foreign-desk');
+  const g = r.groups[0], per = (x) => x / g.n;
+  const input = per(g.tokIn) - 900, output = per(g.tokOut);
+  assert(Math.abs(output / input - 0.8) < 0.12, `output ${output.toFixed(0)} for input ${input.toFixed(0)}`);
+});
+
 // ── Missions: every par setup earns three stars, and pars match the solver ──
 // Minimality (nothing cheaper passes) is make pars --check, which is slow;
 // here the recorded setup must still earn three stars on every seed.

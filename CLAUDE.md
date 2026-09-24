@@ -73,6 +73,10 @@ Vendored from `packages/neorgon-ui/`, never edit in place; run the sync script i
 - **Wi-Fi's 64-client cap often beats the box.** The redline search reports `boxUsers` (the same search with link caps lifted) when `why === 'connections'`; do not "fix" a redline of 63 by raising the cap. The default scenario (gpt-oss-120b on a Spark) is now bandwidth-limited on most seeds, because a Kindle waits out gpt-oss's hidden reasoning.
 - **What precedes the first word is modelled.** `models.js` `reasons.min`, persona `lead` and client `thinking` decide when the first visible token leaves the server (`firstIdx` in `sim.js`). A voice lesson that "breaks" after a model change is usually this.
 - **Prompt caches key on content** (`prefixKey` in `sim.js`), not on the group. Groups with genuinely different system prompts need distinct `prefixId`s (see the six-language mission).
+- **The verdict is not busy time.** `judge()` in `report.js` calls a run tight when the slowest 5% of a group's answers use 80% of its limit (`strain`), or every slot is full on a box over 85% busy. Groups whose persona never pauses (`think: 0`, `readTps: 0`) are background load and never make a run tight on their own.
+- **Splits follow the runtime.** `splitMode` in `runtimes.js`: `tensor` multiplies bandwidth and compute, `layer` (llama.cpp RPC) pools memory only, none (Ollama) refuses to split. A split on a box without `pairable` is a fit failure, not a slow run.
+- **llama.cpp's slots pool their KV** (`kvUnified`): one request may use slots x context per slot, and admission checks the pool. Ollama keeps fixed per-slot windows and truncates.
+- **Stars need a buyable box.** `scoreMission` refuses custom and announced boxes, because pars are solved over shipping ones. A 4-bit KV cache costs 0.1 tier, which moves pars off Q4 KV.
 - **Pars are proven on four seeds.** `make pars-check` (minutes) proves each par is still the cheapest setup; `make test` only re-checks the recorded `parSetup`.
 - **Playwright's default browser here runs at 80% zoom**, so a 1440 viewport measures 1800 CSS px. Measure layout in a context whose `clientWidth` you have checked.
 

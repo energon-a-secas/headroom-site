@@ -26,6 +26,9 @@
 //               always writes at least its own minimum; see models.js)
 //   burst       true: sends are synchronised to a clock, every burstEvery
 //               seconds, spread over burstSpread seconds
+//   outRatio    answer length follows input length (a translation): visible
+//               tokens = (prompt + context) x outRatio, instead of `output`
+//   name        (in a group's tweak) what the report calls this group
 //   prefixId    (group level) names the system prompt; groups with the same
 //               persona and prefix share one cached prompt unless they differ
 export const PERSONAS = [
@@ -73,6 +76,12 @@ export const PERSONAS = [
     blurb: 'Device events trigger a tool call. Big shared prompt of devices and tools, tiny answers.',
   },
   {
+    id: 'robot', name: 'Warehouse robot', glyph: 'W',
+    prompt: 700, context: 0, prefix: 4000, output: 250, history: false, turns: 1,
+    think: 240, readTps: 0, slo: { ttft: 0, tps: 0, e2e: 10 }, patience: 30,
+    blurb: 'A mobile robot asks for a new plan when its task changes: map, tools and rules in a big shared prompt, a short plan back, and it idles until the plan arrives.',
+  },
+  {
     id: 'batch', name: 'Overnight batch', glyph: 'B',
     prompt: 60, context: 3000, prefix: 300, output: 300, history: false, turns: 1,
     think: 0, readTps: 0, slo: { ttft: 0, tps: 0, e2e: 600 }, patience: 3600,
@@ -90,13 +99,18 @@ export const PERSONAS = [
 //   thinking    true: the app streams a reasoning model's thinking block as it
 //               is written, so that counts as the first visible text; a speaker
 //               cannot speak its reasoning and waits for the answer itself
+//   noun        how a sentence names it ("a Kindle cannot show thinking")
+// The Kindle's browser is Chrome 75 (firmware 5.16.4 and later), so it can
+// stream over SSE or WebSocket; whole answers are the default because each
+// e-ink repaint costs about 450 ms. Pick a streaming protocol to compare.
 export const CLIENTS = [
-  { id: 'browser', name: 'Laptop browser', updateMs: 16, renderMs: 2, finalMs: 2, mode: 'stream', pipelineMs: 0, protocol: 'sse', thinking: true },
-  { id: 'phone', name: 'Phone app', updateMs: 33, renderMs: 4, finalMs: 4, mode: 'stream', pipelineMs: 0, protocol: 'sse', thinking: true },
-  { id: 'kindle', name: 'Kindle (e-ink)', updateMs: 1000, renderMs: 450, finalMs: 450, mode: 'final', pipelineMs: 0, protocol: 'http', thinking: false },
-  { id: 'speaker', name: 'Smart speaker', updateMs: 50, renderMs: 0, finalMs: 0, mode: 'stream', pipelineMs: 550, protocol: 'ws', thinking: false },
-  { id: 'ide', name: 'IDE / terminal agent', updateMs: 50, renderMs: 0, finalMs: 0, mode: 'stream', pipelineMs: 0, protocol: 'sse', thinking: true },
-  { id: 'badge', name: 'E-paper badge (ESP32)', updateMs: 3000, renderMs: 1500, finalMs: 2000, mode: 'final', pipelineMs: 0, protocol: 'mesh', thinking: false },
+  { id: 'browser', name: 'Laptop browser', noun: 'laptop browser', updateMs: 16, renderMs: 2, finalMs: 2, mode: 'stream', pipelineMs: 0, protocol: 'sse', thinking: true },
+  { id: 'phone', name: 'Phone app', noun: 'phone app', updateMs: 33, renderMs: 4, finalMs: 4, mode: 'stream', pipelineMs: 0, protocol: 'sse', thinking: true },
+  { id: 'kindle', name: 'Kindle (e-ink)', noun: 'Kindle', updateMs: 1000, renderMs: 450, finalMs: 450, mode: 'final', pipelineMs: 0, protocol: 'http', thinking: false },
+  { id: 'speaker', name: 'Smart speaker', noun: 'smart speaker', updateMs: 50, renderMs: 0, finalMs: 0, mode: 'stream', pipelineMs: 550, protocol: 'ws', thinking: false },
+  { id: 'ide', name: 'IDE / terminal agent', noun: 'coding agent', updateMs: 50, renderMs: 0, finalMs: 0, mode: 'stream', pipelineMs: 0, protocol: 'sse', thinking: true },
+  { id: 'script', name: 'Script or service', noun: 'script', updateMs: 0, renderMs: 0, finalMs: 0, mode: 'final', pipelineMs: 0, protocol: 'http', thinking: false },
+  { id: 'badge', name: 'E-paper badge (ESP32)', noun: 'e-paper badge', updateMs: 3000, renderMs: 1500, finalMs: 2000, mode: 'final', pipelineMs: 0, protocol: 'mesh', thinking: false },
 ];
 
 // ── Links ──
@@ -107,6 +121,9 @@ export const CLIENTS = [
 //               contention, acknowledgement). Tiny token packets pay it in full.
 //   mtu         payload bytes per packet
 //   loss        packet loss; each loss costs a retransmission
+//   arq         the radio retransmits on its own (Wi-Fi, Bluetooth, mesh
+//               rebroadcasts), so loss costs airtime only; on internet paths
+//               a loss also stalls the connection for a TCP recovery
 //   duty        share of time the radio may transmit (regulatory duty cycle)
 //   shared      one medium for the whole group (radio) vs switched paths
 //   maxClients  connections the access point / hub can actually hold
@@ -114,15 +131,15 @@ export const CLIENTS = [
 export const LINKS = [
   { id: 'local', name: 'Same machine', rttMs: 0.05, kmMs: 0, mbps: 10000, pktUs: 0, mtu: 65000, loss: 0, duty: 1, shared: false, maxClients: 100000, rangeKm: 0, unit: 'none' },
   { id: 'lan', name: 'Ethernet LAN', rttMs: 0.4, kmMs: 0, mbps: 1000, pktUs: 0, mtu: 1460, loss: 0, duty: 1, shared: false, maxClients: 100000, rangeKm: 0.1, unit: 'm' },
-  { id: 'wifi', name: 'Wi-Fi 6 (same floor)', rttMs: 4, kmMs: 0, mbps: 280, pktUs: 160, mtu: 1460, loss: 0.002, duty: 1, shared: true, maxClients: 64, rangeKm: 0.04, unit: 'm' },
-  { id: 'wifiweak', name: 'Wi-Fi (far room)', rttMs: 14, kmMs: 0, mbps: 40, pktUs: 420, mtu: 1460, loss: 0.02, duty: 1, shared: true, maxClients: 64, rangeKm: 0.06, unit: 'm' },
-  { id: 'ble', name: 'Bluetooth LE hub', rttMs: 45, kmMs: 0, mbps: 0.25, pktUs: 1250, mtu: 244, loss: 0.01, duty: 1, shared: true, maxClients: 10, rangeKm: 0.03, unit: 'm' },
+  { id: 'wifi', name: 'Wi-Fi 6 (same floor)', rttMs: 4, kmMs: 0, mbps: 280, pktUs: 160, mtu: 1460, loss: 0.002, arq: true, duty: 1, shared: true, maxClients: 64, rangeKm: 0.04, unit: 'm' },
+  { id: 'wifiweak', name: 'Wi-Fi (far room)', rttMs: 14, kmMs: 0, mbps: 40, pktUs: 420, mtu: 1460, loss: 0.02, arq: true, duty: 1, shared: true, maxClients: 64, rangeKm: 0.06, unit: 'm' },
+  { id: 'ble', name: 'Bluetooth LE hub', rttMs: 45, kmMs: 0, mbps: 0.25, pktUs: 1250, mtu: 244, loss: 0.01, arq: true, duty: 1, shared: true, maxClients: 10, rangeKm: 0.03, unit: 'm' },
   { id: 'vpn', name: 'Internet via VPN', rttMs: 18, kmMs: 0.012, mbps: 40, pktUs: 0, mtu: 1400, loss: 0.001, duty: 1, shared: false, maxClients: 100000, rangeKm: 20000, unit: 'km' },
   { id: 'cell', name: '4G / 5G phone', rttMs: 48, kmMs: 0.012, mbps: 20, pktUs: 0, mtu: 1400, loss: 0.005, duty: 1, shared: false, maxClients: 100000, rangeKm: 20000, unit: 'km' },
   { id: 'starlink', name: 'Starlink', rttMs: 42, kmMs: 0.012, mbps: 15, pktUs: 0, mtu: 1400, loss: 0.01, duty: 1, shared: false, maxClients: 100000, rangeKm: 20000, unit: 'km' },
   { id: 'geo', name: 'Satellite (GEO)', rttMs: 600, kmMs: 0, mbps: 5, pktUs: 0, mtu: 1400, loss: 0.01, duty: 1, shared: false, maxClients: 100000, rangeKm: 20000, unit: 'km' },
-  { id: 'lora', name: 'LoRa mesh (Meshtastic)', rttMs: 3500, kmMs: 0, mbps: 0.00107, pktUs: 180000, mtu: 200, loss: 0.08, duty: 1, shared: true, maxClients: 80, rangeKm: 12, unit: 'km' },
-  { id: 'loraeu', name: 'LoRa mesh (EU, 10% duty)', rttMs: 3500, kmMs: 0, mbps: 0.00107, pktUs: 180000, mtu: 200, loss: 0.08, duty: 0.1, shared: true, maxClients: 80, rangeKm: 12, unit: 'km' },
+  { id: 'lora', name: 'LoRa mesh (Meshtastic)', rttMs: 3500, kmMs: 0, mbps: 0.00107, pktUs: 180000, mtu: 200, loss: 0.08, arq: true, duty: 1, shared: true, maxClients: 80, rangeKm: 12, unit: 'km' },
+  { id: 'loraeu', name: 'LoRa mesh (EU, 10% duty)', rttMs: 3500, kmMs: 0, mbps: 0.00107, pktUs: 180000, mtu: 200, loss: 0.08, arq: true, duty: 0.1, shared: true, maxClients: 80, rangeKm: 12, unit: 'km' },
 ];
 
 // ── Protocols ──

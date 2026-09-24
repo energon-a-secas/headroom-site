@@ -15,7 +15,7 @@
 import { runScenario } from '../js/engine/sim.js';
 import { MISSIONS, scoreMission } from '../js/data/missions.js';
 import { BOXES } from '../js/data/hardware.js';
-import { MODELS, quantsFor } from '../js/data/models.js';
+import { MODELS, KV_DTYPES, quantsFor } from '../js/data/models.js';
 import { runtimesFor } from '../js/data/runtimes.js';
 import { buildEngine } from '../js/engine/perf.js';
 
@@ -44,6 +44,7 @@ export function candidates(m) {
         for (const q of quantsFor(model)) {
           if (model.tier - q.tierLoss < m.minTier) continue;
           for (const kv of KV) {
+            if (model.tier - q.tierLoss - KV_DTYPES.find((k) => k.id === kv).tierLoss < m.minTier) continue;
             for (const rt of runtimesFor(b.platform)) {
               const layouts = rt.batching === 'slots' ? SLOT_LAYOUTS : [{}];
               for (const overrides of layouts) {

@@ -76,7 +76,7 @@ function setKey(k, v, input) {
     case 'model.kv': sc.model.kv = v; break;
     case 'model.ctxCap': sc.model.ctxCap = parseInt(v, 10) || 0; break;
     case 'runtime.id': sc.runtime = { id: v, overrides: {} }; break;
-    case 'rt.slots': case 'rt.ctxPerSlot': case 'rt.maxBatch':
+    case 'rt.slots': case 'rt.ctxPerSlot': case 'rt.maxBatch': case 'rt.hostCacheGB':
       sc.runtime.overrides = { ...sc.runtime.overrides, [k.slice(3)]: parseInt(v, 10) };
       break;
     case 'rt.prefixCache':

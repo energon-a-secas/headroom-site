@@ -6,6 +6,10 @@
 //     a kilobyte, so one-token-per-event streaming to 50 clients adds up
 //   - duty-cycle rules on LoRa, which cap how much a gateway may transmit
 //   - how many clients a hub can hold at all
+//   - on internet paths, a lost packet stalls the connection until TCP
+//     notices and resends it (about a round trip plus 200 ms); radios that
+//     retransmit at the link layer (Wi-Fi, Bluetooth, LoRa rebroadcasts) only
+//     pay the extra airtime
 //
 // A shared medium is one FIFO: every transmission from or to any client in
 // the group queues behind the previous one. A switched link gives each
@@ -17,7 +21,7 @@ import { linkById, protocolById, clientById, BYTES_PER_TOKEN } from '../data/cro
  * Build the runtime link state for one group. `unlimited` lifts the hub's
  * client cap: "how many would the box hold with enough access points".
  */
-export function makeLink(group, unlimited = false) {
+export function makeLink(group, unlimited = false, rng = null) {
   const L = linkById(group.link);
   const proto = protocolById(group.protocol || clientById(group.client).protocol);
   const km = Math.max(0, group.distanceKm || 0);
@@ -31,7 +35,8 @@ export function makeLink(group, unlimited = false) {
     rttS, oneWayS: rttS / 2,
     bps: L.mbps * 1e6 * rateFactor,
     pktS: L.pktUs * 1e-6,
-    mtu: L.mtu, loss: L.loss, duty: L.duty,
+    mtu: L.mtu, loss: L.loss, duty: L.duty, arq: !!L.arq, rng,
+    rtoS: rttS + 0.2,
     shared: L.shared, maxClients: unlimited ? Infinity : L.maxClients,
     freeAt: 0,       // shared medium: when the channel is next idle
     busyS: 0,        // accumulated airtime, for utilisation
@@ -51,15 +56,23 @@ export function airtime(link, bytes, events = 1) {
  * Send a message that is ready at `t`. Returns when its last byte arrives.
  * On a shared medium the message waits for the channel first.
  */
+/** Extra delay when an end-to-end path loses a packet of this message. */
+function recovery(link, bytes, events) {
+  if (link.arq || !link.loss || !link.rng) return 0;
+  const packets = Math.max(events, Math.ceil(bytes / link.mtu));
+  return link.rng.chance(1 - Math.pow(1 - link.loss, packets)) ? link.rtoS : 0;
+}
+
 export function transmit(link, t, bytes, events = 1) {
   const air = airtime(link, bytes, events);
-  if (!link.shared) return t + air + link.oneWayS;
+  const lost = recovery(link, bytes, events);
+  if (!link.shared) return t + air + link.oneWayS + lost;
   const start = Math.max(t, link.freeAt);
   const wait = start - t;
   if (wait > link.backlogPeakS) link.backlogPeakS = wait;
   link.freeAt = start + air;
   link.busyS += air;
-  return link.freeAt + link.oneWayS;
+  return link.freeAt + link.oneWayS + lost;
 }
 
 /** Bytes a client uploads to ask one question. */

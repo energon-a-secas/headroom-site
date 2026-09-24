@@ -1,7 +1,7 @@
 // ── Missions ─────────────────────────────────────────────────
 
 import { MISSIONS, missionById } from '../data/missions.js';
-import { personaById, clientById, linkById } from '../data/crowd.js';
+import { personaById, clientById, linkById, protocolById } from '../data/crowd.js';
 import { escHtml as e, fmtUsd, fmtDist } from '../utils.js';
 import { verdictBlock } from './score.js';
 
@@ -15,8 +15,12 @@ export function stars(n, big = false) {
 
 const crowdLine = (g) => {
   const L = linkById(g.link);
-  return `${g.count} x ${personaById(g.persona).name}, ${clientById(g.client).name} over ${L.name}${L.unit === 'none' || !g.distanceKm ? '' : ` at ${fmtDist(g.distanceKm, L.unit)}`}`;
+  const name = g.tweak?.name || personaById(g.persona).name;
+  // The device implies its protocol; a group that overrides it says so.
+  const proto = g.protocol ? `; ${protocolById(g.protocol).name}` : '';
+  return `${g.count} x ${name}, ${clientById(g.client).name} over ${L.name}${L.unit === 'none' || !g.distanceKm ? '' : ` at ${fmtDist(g.distanceKm, L.unit)}`}${proto}`;
 };
+const goalText = (m) => `${Math.round(m.goal * 100)}% on target${m.groups.length > 1 ? ' in every group' : ''}`;
 
 export function renderMissions(el, state) {
   const earned = Object.values(state.progress).reduce((a, b) => a + b, 0);
@@ -25,7 +29,7 @@ export function renderMissions(el, state) {
     <div class="mission__top"><h3 class="mission__title">${e(m.title)}</h3>${stars(state.progress[m.id] || 0)}</div>
     <p class="mission__story">${e(m.story)}</p>
     <ul class="list" style="font-size:var(--text-xs)">${m.groups.map((g) => `<li>${e(crowdLine(g))}</li>`).join('')}</ul>
-    <div class="mission__meta"><span>Goal ${Math.round(m.goal * 100)}% on target</span><span>Budget ${fmtUsd(m.budget)}</span><span>Par ${fmtUsd(m.par)}</span><span>Tier ${m.minTier}+</span>${m.maxWatts ? `<span>${m.maxWatts} W solar</span>` : ''}${m.perHour ? `<span>${m.perHour.toLocaleString('en-US')} jobs/h</span>` : ''}</div>
+    <div class="mission__meta"><span>Goal ${goalText(m)}</span><span>Budget ${fmtUsd(m.budget)}</span><span>Par ${fmtUsd(m.par)}</span><span>Tier ${m.minTier}+</span>${m.maxWatts ? `<span>${m.maxWatts} W solar</span>` : ''}${m.perHour ? `<span>${m.perHour.toLocaleString('en-US')} jobs/h</span>` : ''}</div>
     <button type="button" class="btn btn--secondary btn--sm" data-mission="${e(m.id)}">${state.mission === m.id ? 'Continue' : 'Take it on'}</button>
   </article>`).join('')}</div>`;
 }
@@ -35,7 +39,7 @@ export function renderMissionBar(el, state) {
   const m = missionById(state.mission);
   el.hidden = false;
   el.innerHTML = `<span class="mission-bar__title">${e(m.title)}</span>
-    <span class="mission-bar__goal">${Math.round(m.goal * 100)}% of answers on target, everyone connected, tier ${m.minTier}+, within ${fmtUsd(m.budget)} (par ${fmtUsd(m.par)})${m.maxWatts ? `, under ${m.maxWatts} W` : ''}${m.perHour ? `, ${m.perHour.toLocaleString('en-US')} jobs an hour` : ''}. ${e(m.hint)}</span>
+    <span class="mission-bar__goal">${goalText(m).replace('on target', 'of answers on target')}, everyone connected, tier ${m.minTier}+, within ${fmtUsd(m.budget)} (par ${fmtUsd(m.par)})${m.maxWatts ? `, under ${m.maxWatts} W` : ''}${m.perHour ? `, ${m.perHour.toLocaleString('en-US')} jobs an hour` : ''}. ${e(m.hint)}</span>
     ${stars(state.progress[m.id] || 0)}
     <button type="button" class="btn btn--primary btn--sm" id="scoreMissionBtn">Score this setup</button>
     <button type="button" class="btn btn--ghost btn--sm" id="leaveMissionBtn">Leave mission</button>`;

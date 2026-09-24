@@ -98,17 +98,32 @@ export function buildEngine(sc) {
   const split = sc.box.mode === 'split' && count > 1 ? count : 1;
   const servers = sc.box.mode === 'split' ? 1 : count;
 
+  // Two ways to split one model over boxes. Tensor parallel (vLLM, SGLang,
+  // TensorRT-LLM, MLX) gives every box a slice of every layer, so the boxes
+  // read their weights at once and the speed adds up, minus two all-reduces
+  // per layer. A layer split (llama.cpp over RPC) gives each box whole
+  // layers: a token passes through one box and then the next, so the split
+  // pools memory but runs no faster than one box would.
+  const splitMode = split > 1 ? rt.splitMode || 'tensor' : '';
+  const tensor = splitMode === 'tensor';
+  const par = tensor ? split : 1;
+
   // Low-precision tensor math needs a runtime with the kernels, weights stored
   // at that precision, and a chip the serving stack actually runs them on.
   const dtype = rt.lowPrecision && (box.lowPrecision || []).includes(quant.compute) ? quant.compute : 'fp16';
-  const tpEff = split > 1 ? 0.9 : 1;
-  const bw = box.bwGBs * G * rt.bwEff * box.eff.bw * split * tpEff;
-  const flops = (box.tflops[dtype] || box.tflops.fp16) * 1e12 * rt.computeEff * box.eff.compute * split * tpEff;
+  const tpEff = tensor ? 0.9 : 1;
+  // PyTorch-based servers (the low-precision ones) accumulate FP16 math in
+  // FP32, which GeForce cards run at half rate.
+  const rate = dtype === 'fp16' && rt.lowPrecision && box.tflops.bf16 ? box.tflops.bf16 : (box.tflops[dtype] || box.tflops.fp16);
+  const bw = box.bwGBs * G * rt.bwEff * box.eff.bw * par * tpEff;
+  const flops = rate * 1e12 * rt.computeEff * box.eff.compute * par * tpEff;
 
-  // Tensor parallelism pays two all-reduces per layer per iteration.
+  // Tensor parallel pays two all-reduces per layer per iteration; a layer
+  // split hands the hidden state across each box boundary once.
   const link = box.link || { latencyUs: 45, gbps: 10 };
-  const commPerTok = split > 1 ? 2 * fp.layers * fp.hiddenBytes / (link.gbps * G / 8) : 0;
-  const commFixed = split > 1 ? 2 * fp.layers * link.latencyUs * 1e-6 : 0;
+  const hops = tensor ? 2 * fp.layers : split - 1;
+  const commPerTok = split > 1 ? hops * fp.hiddenBytes / (link.gbps * G / 8) : 0;
+  const commFixed = split > 1 ? hops * link.latencyUs * 1e-6 : 0;
 
   const usable = box.usableGB * G * split;
   const overhead = 1.2 * G + 0.03 * fp.weightBytes + (split > 1 ? 0.5 * G * split : 0);
@@ -116,19 +131,26 @@ export function buildEngine(sc) {
 
   const maxBatch = Math.max(1, (rt.batching === 'slots' ? rt.slots : rt.maxBatch) | 0);
   const ctxCap = Math.min(model.maxCtx, sc.model.ctxCap || model.maxCtx);
-  const slotCtx = rt.batching === 'slots' ? Math.min(ctxCap, rt.ctxPerSlot | 0) : ctxCap;
+  // llama-server pools its slots' context (--kv-unified, on by default since
+  // late 2025): one request may use all of it while the others are short.
+  const pooled = rt.batching === 'slots' && rt.kvUnified;
+  const slotCtx = rt.batching === 'slots' ? Math.min(ctxCap, (rt.ctxPerSlot | 0) * (pooled ? maxBatch : 1)) : ctxCap;
 
   let fit = { ok: true, reason: '' };
   let kvPool = 0;
   if (!rt.platforms.includes(box.platform)) {
     fit = { ok: false, code: 'platform', reason: `${rt.name} does not run on ${box.short} (${box.platform.toUpperCase()}).` };
+  } else if (split > 1 && !box.pairable) {
+    fit = { ok: false, code: 'split', reason: `${box.short} has no fast link for splitting one model across boxes. Run the boxes as replicas, or pick a box that pairs.` };
+  } else if (split > 1 && !rt.splitMode) {
+    fit = { ok: false, code: 'split', reason: `${rt.name} cannot split one model across boxes. llama.cpp (over RPC) and vLLM can.` };
   } else if (free <= 0) {
     fit = { ok: false, code: 'weights', reason: `${model.name} at ${quant.label} needs ${(fp.weightBytes / G).toFixed(0)} GB of weights plus about ${(overhead / G).toFixed(0)} GB of runtime overhead; ${box.short}${split > 1 ? ` x${split}` : ''} has ${(usable / G).toFixed(0)} GB usable.` };
   } else if (rt.batching === 'slots') {
-    const need = maxBatch * kvBytes(fp, slotCtx);
+    const need = pooled ? kvBytes(fp, maxBatch * Math.min(ctxCap, rt.ctxPerSlot | 0)) + (maxBatch - 1) * fp.stateBytes : maxBatch * kvBytes(fp, slotCtx);
     kvPool = need;
     if (need > free) {
-      fit = { ok: false, code: 'kv', reason: `${maxBatch} slots x ${fmtK(slotCtx)} context need ${(need / G).toFixed(1)} GB of KV cache; only ${(free / G).toFixed(1)} GB is left after the weights. Use fewer slots, a shorter context or a smaller KV type.` };
+      fit = { ok: false, code: 'kv', reason: `${maxBatch} slots x ${fmtK(Math.min(ctxCap, rt.ctxPerSlot | 0))} context need ${(need / G).toFixed(1)} GB of KV cache; only ${(free / G).toFixed(1)} GB is left after the weights. Use fewer slots, a shorter context or a smaller KV type.` };
     }
   } else {
     kvPool = free * 0.94; // block fragmentation and scratch space
@@ -141,15 +163,15 @@ export function buildEngine(sc) {
 
   return {
     box, model, quant, kv, rt, fp, dtype,
-    servers, split, count,
+    servers, split, splitMode, count,
     bw, flops, launchS, moeM0: (box.eff.moeM0 ?? 16) * (rt.moeScale ?? 1),
-    peakBw: box.bwGBs * G * split, peakFlops: (box.tflops[dtype] || box.tflops.fp16) * 1e12 * split,
+    peakBw: box.bwGBs * G * split, peakFlops: rate * 1e12 * split,
     stepS: (rt.stepMs / 1000) * stepMul + commFixed,
     perSeqS: (rt.perSeqMs / 1000) * stepMul,
     commPerTok,
-    maxBatch, slotCtx, ctxCap, chunk: rt.chunk || 512,
+    maxBatch, slotCtx, ctxCap, pooled, chunk: rt.chunk || 512,
     kvPool, freeBytes: free, overhead, usable, fit,
-    tier: Math.max(0, model.tier - quant.tierLoss),
+    tier: Math.max(0, model.tier - quant.tierLoss - (kv.tierLoss || 0)),
     idleW: box.idleW * count, loadW: box.loadW * count,
     priceUsd: box.priceUsd * count,
   };

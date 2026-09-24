@@ -287,3 +287,23 @@ Sources: {hf} `unsloth/Llama-3.1-8B-Instruct`, `unsloth/Llama-3.3-70B-Instruct`,
 - **Real link bandwidth between boxes** is ~100 to 110 Gbps on "200G" ConnectX-7 {M jg-gb10} and ~10 Gbps on USB4 networking {M jg-fw}. Tensor-parallel scaling over two boxes is 1.8× for Llama 8B on Strix Halo with RoCE {M ky-vllm}.
 - **The priority model list is dated.** The Sept 2026 Strix Halo benchmark suite tests Qwen3.5/3.6, Gemma 4, GLM-4.7-Flash, Nemotron 3 Super and MiniMax-M2.7 alongside gpt-oss {M ky-lc}. Worth one more research pass for those configs if presets should look current.
 - **Kindle client:** the e-ink floor is 120 to 450 ms per update (2 s for a full clear) {O eink}. Token streaming should batch into updates about once a second, and the page should work with plain polling, because the Kindle Chromium's support for streaming APIs is unverified and the old engine killed WebSockets {M kwt}.
+
+---
+
+## Update, 2026-09-24
+
+A second pass closed several items from section 5. Sources were read on 2026-09-24; hosts were checked against robots.txt first.
+
+| Finding | Value | Source |
+|---|---|---|
+| Kindle browser engine | Chrome 75.0.3770.143 on firmware 5.18.4 and 5.18.6; current firmware is 5.19.6 (July 2026) | Synacktiv, "Bootstrapping Kindle research", LeHack 2026 (27 June 2026), p. 14 and 18: https://www.synacktiv.com/sites/default/files/2026-06/bootstrapping_kindle_research_lehack_2026.pdf; Amazon firmware release notes |
+| Streaming on that browser | fetch with a readable body (Chrome 43+), EventSource (6+) and WebSocket (5+) all predate Chrome 75, and Synacktiv debugged through WebSocket logging from the Kindle browser. Optional chaining and `??` (Chrome 80) do not run there | MDN browser-compat-data, main at b15138a; Synacktiv p. 30 |
+| Mac mini M5 Pro power | 6 W idle, 145 W maximum (64 GB configuration); Mac mini M6 4 W and 70 W | Apple Support, Mac mini power consumption and thermal output |
+| Mac Studio power | M5 Max (36 GB, 32-core GPU) 7 W idle, 200 W maximum; M5 Ultra (512 GB) 9 W idle, 385 W maximum | Apple Support, Mac Studio power consumption |
+| Mac prices | Mac mini M5 Pro from $1,699 (24 GB); Mac Studio M5 Max from $2,499, M5 Ultra from $5,499. The store did not return memory upcharges, so the 64 GB and 128 GB prices stay estimates | Apple Store configurator, 2026-09-24 |
+| Apple bandwidth | M5 Pro 307 GB/s, M5 Max 614 GB/s, M5 Ultra 1.2 TB/s, M6 153 to 170 GB/s | Apple Mac mini and Mac Studio tech specs |
+| RTX 5090 tensor rates (dense) | FP16 419 with FP16 accumulate, 209.5 with FP32 accumulate; BF16 209.5; FP8 838 / 419; FP4 1,676 | NVIDIA RTX Blackwell GPU Architecture whitepaper, appendix A |
+| llama-server defaults | `--parallel` auto becomes 4 slots with `--kv-unified` on, so every slot can use the whole context; `--cache-ram` 8192 MiB; n_batch 2048, n_ubatch 512; `--fit` sizes the context to memory; an over-long prompt is refused, never truncated; the default multi-device split is by layer | llama.cpp master fc343a84 (b11160): common/common.h, common/arg.cpp, tools/server/server.cpp, src/llama-context.cpp; PRs #16736 (2025-11-02), #16391, #16653 |
+| llama.cpp across boxes | RPC splits by layer, and a single stream is no faster than one box: Qwen3 0.6B decodes at 304.8 tok/s on one M3 Ultra and 261.3 on two over Thunderbolt 5 RDMA. Tensor parallel over NCCL (1.81x decode on two Sparks) is an open PR, not merged | llama.cpp PRs #26421 (2026-08-25), #18626, #20590, open #28967 |
+
+Model configs for Qwen3.5 and 3.6, Gemma 4, GLM-4.7, Nemotron 3 and MiniMax-M2.7 were collected but not yet added to the catalog; their capability tiers need a benchmark anchor that this pass did not finish.

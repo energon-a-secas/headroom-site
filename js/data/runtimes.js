@@ -15,6 +15,8 @@
 //               sampling, non-fused kernels); why 32 users are not 32x free
 //   lowPrecision  can run prompt math in FP8/FP4 when the weights and the
 //               hardware allow it; otherwise everything computes at FP16
+//   kvUnified   the slots share one KV pool (slots x context per slot), so a
+//               single request may use all of it (llama-server's default)
 //   hostCacheGB a slot server that parks evicted prompts in host RAM and
 //               restores them (llama-server --cache-ram, 8 GiB by default)
 //   moeScale    how well its mixture-of-experts kernels batch prompt tokens:
@@ -22,6 +24,10 @@
 //               small per-expert batches efficient; llama.cpp's do not)
 //   truncates   an over-long prompt is cut to fit and answered anyway (Ollama
 //               keeps the tail), instead of being refused
+//   splitMode   how it spreads one model over several boxes: 'tensor' (every
+//               box works on every token, so speed adds up), 'layer' (each box
+//               holds whole layers and a token visits them in turn, so memory
+//               adds up and speed does not), or none
 //   platforms   which box platforms it runs on
 //
 // Efficiencies are calibrated against published benchmarks; the Method tab
@@ -32,9 +38,9 @@ export const RUNTIMES = [
     id: 'llamacpp', name: 'llama.cpp server', batching: 'slots',
     slots: 4, ctxPerSlot: 16384, maxBatch: 4,
     bwEff: 0.85, computeEff: 0.5, stepMs: 1, perSeqMs: 0.45,
-    prefixCache: true, hostCacheGB: 8, moeScale: 1, chunk: 512, lowPrecision: false,
+    prefixCache: true, hostCacheGB: 8, kvUnified: true, moeScale: 1, chunk: 512, lowPrecision: false, splitMode: 'layer',
     platforms: ['cuda', 'rocm', 'metal', 'cpu'],
-    blurb: 'Runs everywhere, quantized GGUF files, fast for one user. Parallel slots split a fixed context.',
+    blurb: 'Runs everywhere, quantized GGUF files, fast for one user. Its parallel slots share one context pool, so one long request can use what the others leave free.',
   },
   {
     id: 'ollama', name: 'Ollama, one slot', batching: 'slots',
@@ -48,7 +54,7 @@ export const RUNTIMES = [
     id: 'vllm', name: 'vLLM', batching: 'paged',
     slots: 0, ctxPerSlot: 0, maxBatch: 128,
     bwEff: 0.74, computeEff: 0.55, stepMs: 10, perSeqMs: 0.08,
-    prefixCache: true, moeScale: 0.08, chunk: 2048, lowPrecision: true,
+    prefixCache: true, moeScale: 0.08, chunk: 2048, lowPrecision: true, splitMode: 'tensor',
     platforms: ['cuda', 'rocm'],
     blurb: 'Built for many users: paged KV cache, continuous batching, automatic prefix caching.',
   },
@@ -56,7 +62,7 @@ export const RUNTIMES = [
     id: 'sglang', name: 'SGLang', batching: 'paged',
     slots: 0, ctxPerSlot: 0, maxBatch: 128,
     bwEff: 0.76, computeEff: 0.56, stepMs: 6, perSeqMs: 0.07,
-    prefixCache: true, moeScale: 0.08, chunk: 2048, lowPrecision: true,
+    prefixCache: true, moeScale: 0.08, chunk: 2048, lowPrecision: true, splitMode: 'tensor',
     platforms: ['cuda'],
     blurb: 'Like vLLM, with a radix-tree prefix cache that pays off when requests share a system prompt.',
   },
@@ -64,7 +70,7 @@ export const RUNTIMES = [
     id: 'trtllm', name: 'TensorRT-LLM', batching: 'paged',
     slots: 0, ctxPerSlot: 0, maxBatch: 128,
     bwEff: 0.82, computeEff: 0.62, stepMs: 3, perSeqMs: 0.05,
-    prefixCache: true, moeScale: 0.06, chunk: 2048, lowPrecision: true,
+    prefixCache: true, moeScale: 0.06, chunk: 2048, lowPrecision: true, splitMode: 'tensor',
     platforms: ['cuda'],
     blurb: 'NVIDIA only and fiddly to build, but the most efficient kernels on Blackwell.',
   },
@@ -72,7 +78,7 @@ export const RUNTIMES = [
     id: 'mlx', name: 'MLX server', batching: 'slots',
     slots: 4, ctxPerSlot: 16384, maxBatch: 4,
     bwEff: 0.85, computeEff: 0.5, stepMs: 1.5, perSeqMs: 0.5,
-    prefixCache: true, hostCacheGB: 8, moeScale: 1, chunk: 512, lowPrecision: false,
+    prefixCache: true, hostCacheGB: 8, moeScale: 1, chunk: 512, lowPrecision: false, splitMode: 'tensor',
     platforms: ['metal'],
     blurb: 'Apple silicon native. Good single-user speed, modest batching.',
   },

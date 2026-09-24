@@ -1,8 +1,9 @@
 // ── Missions ─────────────────────────────────────────────────
 // Each mission fixes the crowd and the goal; the player picks the box,
 // model, precision and runtime. Stars:
-//   1  the crowd is served: answers meet the goal, everyone can connect,
-//      and the model is capable enough for the job (tier floor)
+//   1  the crowd is served: answers meet the goal in every group, everyone
+//      can connect, the model is capable enough for the job (tier floor),
+//      and the box is one you can buy today (not announced, not custom)
 //   2  ...and the hardware fits the budget
 //   3  ...and the hardware costs no more than par: the cheapest setup in the
 //      catalog that serves this crowd, found by simulating every box, model
@@ -19,7 +20,7 @@ export const MISSIONS = [
     id: 'bookclub', title: 'The e-ink book club',
     story: 'A library lends 50 Kindles loaded with the same reading list. Readers tap a word or a passage and ask the house AI about it. E-ink cannot stream, so the whole answer has to arrive and refresh within 20 seconds.',
     groups: [{ persona: 'reader', count: 50, client: 'kindle', link: 'wifi', distanceKm: 0.015 }],
-    goal: 0.95, budget: 5000, minTier: 3.5, duration: 1200, par: 2200,
+    goal: 0.95, budget: 5000, minTier: 3.5, duration: 1200, par: 2300,
     parSetup: { box: 'mac-mini-m5pro', count: 1, mode: 'replica', model: 'qwen3-next-80b', quant: 'q3', kv: 'f16', runtime: 'llamacpp', overrides: { slots: 4, ctxPerSlot: 16384 } },
     hint: 'Nothing shows until the whole answer is written, so every token counts against the 20 seconds, including any hidden thinking a reasoning model writes first. Each question also carries a page of the book that no cache can skip.',
   },
@@ -31,7 +32,7 @@ export const MISSIONS = [
       { persona: 'student', count: 1, client: 'browser', link: 'wifi', distanceKm: 0.01, tweak: { burst: false, think: 60 } },
       { persona: 'voice', count: 2, client: 'speaker', link: 'wifiweak', distanceKm: 0.02 },
     ],
-    goal: 0.95, budget: 3000, minTier: 3, duration: 1800, par: 2200,
+    goal: 0.95, budget: 3000, minTier: 3, duration: 1800, par: 2300,
     parSetup: { box: 'mac-mini-m5pro', count: 1, mode: 'replica', model: 'qwen3-30b-a3b', quant: 'q8', kv: 'f16', runtime: 'llamacpp', overrides: { slots: 4, ctxPerSlot: 16384 } },
     hint: 'The speaker needs its first word in 1.2 seconds even when the teenager is mid-essay. It cannot speak a reasoning model\'s hidden thinking, so that thinking and a 16-token speech buffer both come before the first word.',
   },
@@ -39,15 +40,15 @@ export const MISSIONS = [
     id: 'crew', title: 'Coding crew',
     story: 'Six developers each run a coding agent against a shared box on the office LAN. Agents resend a long system prompt and every tool result, all day.',
     groups: [{ persona: 'coder', count: 6, client: 'ide', link: 'lan', distanceKm: 0 }],
-    goal: 0.9, budget: 8000, minTier: 3.5, duration: 1800, par: 2200,
-    parSetup: { box: 'mac-mini-m5pro', count: 1, mode: 'replica', model: 'qwen3-next-80b', quant: 'q3', kv: 'q4', runtime: 'llamacpp', overrides: { slots: 16, ctxPerSlot: 32768 } },
+    goal: 0.9, budget: 8000, minTier: 3.5, duration: 1800, par: 2300,
+    parSetup: { box: 'mac-mini-m5pro', count: 1, mode: 'replica', model: 'qwen3-next-80b', quant: 'q3', kv: 'q8', runtime: 'mlx', overrides: { slots: 16, ctxPerSlot: 32768 } },
     hint: 'The system prompt and tools alone are 7,000 tokens, and contexts grow to tens of thousands. Check the context window first (Ollama\'s 8K default cuts the prompt and answers without its start), then the KV cache, then the tokens per second.',
   },
   {
     id: 'bell', title: 'The classroom bell',
     story: 'Thirty students get the same exercise and press submit within twenty seconds of each other. Every answer must be on screen within a minute, every time the bell rings.',
     groups: [{ persona: 'student', count: 30, client: 'browser', link: 'wifi', distanceKm: 0.02 }],
-    goal: 0.95, budget: 6000, minTier: 3.5, duration: 1500, par: 2200,
+    goal: 0.95, budget: 6000, minTier: 3.5, duration: 1500, par: 2300,
     parSetup: { box: 'mac-mini-m5pro', count: 1, mode: 'replica', model: 'qwen3-next-80b', quant: 'q3', kv: 'f16', runtime: 'llamacpp', overrides: { slots: 4, ctxPerSlot: 16384 } },
     hint: 'Average load is low; the burst is what breaks boxes. Thirty answers of about 420 tokens must all be on screen within a minute of submit, so count the tokens a second the box delivers across the whole burst. A model that reasons first adds its thinking to every one of them.',
   },
@@ -55,8 +56,8 @@ export const MISSIONS = [
     id: 'butler', title: 'Voice butler',
     story: 'Eight smart speakers around a large house. Speech-to-text and text-to-speech run on the speakers; the box only has to start talking fast.',
     groups: [{ persona: 'voice', count: 8, client: 'speaker', link: 'wifi', distanceKm: 0.03 }],
-    goal: 0.95, budget: 3000, minTier: 2, duration: 1200, par: 2200,
-    parSetup: { box: 'mac-mini-m5pro', count: 1, mode: 'replica', model: 'qwen3-30b-a3b', quant: 'q3', kv: 'q4', runtime: 'llamacpp', overrides: { slots: 4, ctxPerSlot: 16384 } },
+    goal: 0.95, budget: 3000, minTier: 2, duration: 1200, par: 1700,
+    parSetup: { box: 'mac-mini-m5pro-24', count: 1, mode: 'replica', model: 'qwen3-8b', quant: 'q3', kv: 'q8', runtime: 'llamacpp', overrides: { slots: 4, ctxPerSlot: 16384 } },
     hint: 'Only the first word counts, and a speaker cannot say anything until the model has written its hidden thinking and 16 tokens of the answer. A small model that answers straight away on a modest box beats a giant one that reasons first.',
   },
   {
@@ -65,7 +66,7 @@ export const MISSIONS = [
     groups: [{ persona: 'chat', count: 12, client: 'badge', link: 'lora', protocol: 'mesh', distanceKm: 5,
       tweak: { output: 60, prefix: 200, history: false, think: 240, slo: { ttft: 0, tps: 0, e2e: 180 }, patience: 600 } }],
     goal: 0.95, budget: 2500, minTier: 2, duration: 3600, maxWatts: 60, par: 700,
-    parSetup: { box: 'pi5', count: 2, mode: 'replica', model: 'qwen3-8b', quant: 'q3', kv: 'q4', runtime: 'llamacpp', overrides: { slots: 4, ctxPerSlot: 16384 } },
+    parSetup: { box: 'pi5', count: 2, mode: 'replica', model: 'qwen3-8b', quant: 'q4', kv: 'q8', runtime: 'llamacpp', overrides: { slots: 4, ctxPerSlot: 16384 } },
     hint: 'Every answer spends more than ten seconds on the radio whatever the box, and token-by-token streaming would jam the channel, so the badges use compact packets. Three minutes leaves the rest for the box, so a slow and frugal one can be enough.',
   },
   {
@@ -75,16 +76,16 @@ export const MISSIONS = [
       { persona: 'chat', count: 8, client: 'browser', link: 'lan', distanceKm: 0 },
       { persona: 'chat', count: 12, client: 'browser', link: 'vpn', distanceKm: 9000 },
     ],
-    goal: 0.95, budget: 6000, minTier: 3.5, duration: 1500, par: 2200,
-    parSetup: { box: 'mac-mini-m5pro', count: 1, mode: 'replica', model: 'qwen3-next-80b', quant: 'q3', kv: 'f16', runtime: 'llamacpp', overrides: { slots: 8, ctxPerSlot: 16384 } },
+    goal: 0.95, budget: 6000, minTier: 3.5, duration: 1500, par: 2300,
+    parSetup: { box: 'mac-mini-m5pro', count: 1, mode: 'replica', model: 'qwen3-next-80b', quant: 'q3', kv: 'f16', runtime: 'mlx', overrides: { slots: 8, ctxPerSlot: 16384 } },
     hint: 'Distance adds a fixed 100+ ms. The first-token target still leaves room, if the queue stays short.',
   },
   {
     id: 'archivist', title: 'Overnight archivist',
     story: 'A small firm wants 20,000 documents summarized before morning: ten hours, so at least 2,000 an hour, with nobody watching.',
-    groups: [{ persona: 'batch', count: 24, client: 'ide', link: 'lan', distanceKm: 0 }],
-    goal: 0.95, budget: 5000, minTier: 3, duration: 1200, perHour: 2000, par: 3500,
-    parSetup: { box: 'jetson-thor', count: 1, mode: 'replica', model: 'gpt-oss-20b', quant: 'mxfp4', kv: 'q8', runtime: 'trtllm', overrides: {} },
+    groups: [{ persona: 'batch', count: 24, client: 'script', link: 'lan', distanceKm: 0 }],
+    goal: 0.95, budget: 5000, minTier: 3, duration: 1200, perHour: 2000, par: 3400,
+    parSetup: { box: 'mac-mini-m5pro-24', count: 2, mode: 'replica', model: 'gpt-oss-20b', quant: 'mxfp4', kv: 'f16', runtime: 'llamacpp', overrides: { slots: 4, ctxPerSlot: 16384 } },
     hint: 'Pure throughput. Big batches, a paged runtime and a model that decodes cheaply per token. A model that always reasons also writes its hidden thinking for every document.',
   },
   {
@@ -103,9 +104,9 @@ export const MISSIONS = [
     story: 'A family runs Home Assistant with 150 entities exposed to its voice assistant, from lights and locks to the thermostat, so every command from the speakers in six rooms carries the same 8,500-token system prompt of devices and tool definitions. Four automations share a different 2,500-token prompt and ask small questions from sensor readings, such as whether the washing machine\'s power draw means the cycle has finished. On a busy evening each room speaks every few minutes, the model calls a tool before it replies, and the family wants the first spoken word within 2 seconds and each automation\'s answer within 4 seconds.',
     groups: [
       { persona: 'voice',  count: 6,  client: 'speaker',  link: 'wifi',  distanceKm: 0.015,  tweak: { prefix: 8500,  lead: 56,  think: 300,  slo: { ttft: 2 } } },
-      { persona: 'home',  count: 4,  client: 'ide',  link: 'lan',  distanceKm: 0,  tweak: { prefix: 2500,  think: 600,  slo: { ttft: 0 } } },
+      { persona: 'home',  count: 4,  client: 'script',  link: 'lan',  distanceKm: 0,  tweak: { name: 'Automation',  prefix: 2500,  think: 600,  slo: { ttft: 0 } } },
     ],
-    goal: 0.95, budget: 3000, minTier: 3, duration: 3600, par: 2200,
+    goal: 0.95, budget: 3000, minTier: 3, duration: 3600, par: 2300,
     parSetup: { box: 'mac-mini-m5pro', count: 1, mode: 'replica', model: 'qwen3-30b-a3b', quant: 'q8', kv: 'q8', runtime: 'llamacpp', overrides: { slots: 4, ctxPerSlot: 16384 } },
     hint: 'Home Assistant asks Ollama for an 8K context unless you raise it, and a prompt that does not fit is cut, not refused. The voice prompt and the automations\' prompt alternate all evening, so check whether the server can keep both cached at once.',
   },
@@ -123,18 +124,18 @@ export const MISSIONS = [
     id: 'foreign-desk', title: 'The foreign desk',
     story: 'Ten journalists on a national daily\'s foreign desk spend the two hours before the morning news meeting reading the overseas press through the house model. Each drops in a German or Spanish article, usually about 1,000 words and sometimes twice that. The translate button asks for low reasoning effort and returns the whole English text in one piece rather than as a stream. A translation that takes more than 90 seconds counts as late, and because lines from these translations get quoted in print, the editor will not settle for a small model.',
     groups: [
-      { persona: 'chat',  count: 10,  client: 'browser',  link: 'lan',  protocol: 'http',  distanceKm: 0,  tweak: { prompt: 1700,  output: 1300,  prefix: 900,  history: false,  turns: 1,  think: 60,  readTps: 7,  slo: { ttft: 0,  tps: 0,  e2e: 90 },  patience: 300 } },
+      { persona: 'chat',  count: 10,  client: 'browser',  link: 'lan',  protocol: 'http',  distanceKm: 0,  tweak: { prompt: 1700,  outRatio: 0.8,  prefix: 900,  history: false,  turns: 1,  think: 60,  readTps: 7,  slo: { ttft: 0,  tps: 0,  e2e: 90 },  patience: 300 } },
     ],
     goal: 0.95, budget: 6000, minTier: 4, duration: 7200, par: 3500,
-    parSetup: { box: 'jetson-thor', count: 1, mode: 'replica', model: 'qwen3-next-80b', quant: 'q6', kv: 'f16', runtime: 'trtllm', overrides: {} },
+    parSetup: { box: 'jetson-thor', count: 1, mode: 'replica', model: 'qwen3-next-80b', quant: 'q6', kv: 'q8', runtime: 'trtllm', overrides: {} },
     hint: 'About two long answers are in flight at a time, so a batching server has almost nothing to batch. Each token then costs the time to read the active weights plus the fixed time the server spends on every step, and at this load that second part is not small.',
   },
   {
     id: 'fleet-two-satellites', title: 'Twenty ships, two satellite links',
     story: 'A ship-management company runs a box in its shore office so the officers on its 20 ships, up to 3,000 km out, can search the safety manual, port rules and charter clauses. During a port-state inspection campaign two officers on every ship use it, each asking about once every quarter of an hour. Ten ships now have Starlink and read each answer as it streams in, with the first words due within 3 seconds. Ten still use a geostationary VSAT link whose scanning proxy opens a new TLS session for every question and holds the reply until all of it has arrived. An officer on the old link goes back to the paper binder if that takes more than 10 seconds.',
     groups: [
-      { persona: 'rag',  count: 20,  client: 'browser',  link: 'starlink',  distanceKm: 3000,  tweak: { think: 900 } },
-      { persona: 'rag',  count: 20,  client: 'browser',  link: 'geo',  protocol: 'coldhttp',  distanceKm: 3000,  tweak: { think: 900,  slo: { ttft: 0,  tps: 0,  e2e: 10 } } },
+      { persona: 'rag',  count: 20,  client: 'browser',  link: 'starlink',  distanceKm: 3000,  tweak: { name: 'Crew on Starlink',  think: 900 } },
+      { persona: 'rag',  count: 20,  client: 'browser',  link: 'geo',  protocol: 'coldhttp',  distanceKm: 3000,  tweak: { name: 'Crew on GEO',  think: 900,  slo: { ttft: 0,  tps: 0,  e2e: 10 } } },
     ],
     goal: 0.95, budget: 6000, minTier: 3.5, duration: 3600, par: 3700,
     parSetup: { box: 'mac-m5max-128', count: 1, mode: 'replica', model: 'qwen3-next-80b', quant: 'q3', kv: 'f16', runtime: 'llamacpp', overrides: { slots: 2, ctxPerSlot: 131072 } },
@@ -145,10 +146,10 @@ export const MISSIONS = [
     story: 'Twenty support agents look things up in the knowledge base through the house model, each about once every four minutes, on a box running llama.cpp with its default four slots. It kept up for months. On Monday morning someone starts a backfill that turns last year\'s closed tickets into knowledge-base drafts, with eight workers that each send the next ticket the moment the previous one comes back. The agents still expect their first word within 3 seconds.',
     groups: [
       { persona: 'rag',  count: 20,  client: 'browser',  link: 'lan',  distanceKm: 0,  tweak: { think: 180 } },
-      { persona: 'batch',  count: 8,  client: 'ide',  link: 'lan',  distanceKm: 0,  tweak: { context: 2200,  prompt: 150,  prefix: 1200,  output: 250 } },
+      { persona: 'batch',  count: 8,  client: 'script',  link: 'lan',  distanceKm: 0,  tweak: { name: 'Ticket backfill',  context: 2200,  prompt: 150,  prefix: 1200,  output: 250 } },
     ],
     goal: 0.95, budget: 6000, minTier: 3.5, duration: 1800, par: 3500,
-    parSetup: { box: 'jetson-thor', count: 1, mode: 'replica', model: 'qwen3-next-80b', quant: 'q3', kv: 'q8', runtime: 'trtllm', overrides: {} },
+    parSetup: { box: 'jetson-thor', count: 1, mode: 'replica', model: 'qwen3-next-80b', quant: 'q5', kv: 'q8', runtime: 'trtllm', overrides: {} },
     hint: 'The backfill never pauses. Eight workers on four slots always leave tickets waiting, and each agent question joins the back of that line. More places end the wait but not the sharing: every ticket is a long prompt read in the same passes as the agents\' questions, so check the agents\' own score, not the average.',
   },
   {
@@ -157,7 +158,7 @@ export const MISSIONS = [
     groups: [
       { persona: 'student',  count: 36,  client: 'browser',  link: 'wifi',  distanceKm: 0.02 },
     ],
-    goal: 0.95, budget: 5000, minTier: 3, duration: 1500, maxWatts: 30, par: 2200,
+    goal: 0.95, budget: 5000, minTier: 3, duration: 1500, maxWatts: 30, par: 2300,
     parSetup: { box: 'mac-mini-m5pro', count: 1, mode: 'replica', model: 'gpt-oss-20b', quant: 'mxfp4', kv: 'f16', runtime: 'llamacpp', overrides: { slots: 8, ctxPerSlot: 16384 } },
     hint: 'Between exercises the box sits waiting, so its idle draw is a floor under the average and busy time adds to it. Check that floor before the speed, then give the burst enough slots: answering a queue a few at a time keeps the box busy longer.',
   },
@@ -165,12 +166,12 @@ export const MISSIONS = [
     id: 'six-language-guide', title: 'The six-language audio guide',
     story: 'A city museum rents audio-guide handsets that listen and speak, and on a Saturday afternoon 100 visitors use them at once: 36 in English, 18 in Spanish, 14 in French, 12 in German, 10 in Japanese and 10 in Mandarin. Each language has its own 2,500-token guide prompt, a tour script the curators approved word for word, so the six cannot be merged into one. Every question also carries the wall label of the object in front of the visitor, and the galleries have several Wi-Fi access points. An answer that takes more than 1.2 seconds to start talking feels broken, and the handset\'s own speech processing uses about half a second of that.',
     groups: [
-      { persona: 'voice',  count: 36,  client: 'speaker',  link: 'wifi',  distanceKm: 0.03,  prefixId: 'guide-en',  tweak: { prefix: 2500,  context: 180,  prompt: 30,  output: 90,  turns: 5,  think: 120,  patience: 10 } },
-      { persona: 'voice',  count: 18,  client: 'speaker',  link: 'wifi',  distanceKm: 0.03,  prefixId: 'guide-es',  tweak: { prefix: 2500,  context: 180,  prompt: 30,  output: 90,  turns: 5,  think: 120,  patience: 10 } },
-      { persona: 'voice',  count: 14,  client: 'speaker',  link: 'wifi',  distanceKm: 0.03,  prefixId: 'guide-fr',  tweak: { prefix: 2500,  context: 180,  prompt: 30,  output: 90,  turns: 5,  think: 120,  patience: 10 } },
-      { persona: 'voice',  count: 12,  client: 'speaker',  link: 'wifi',  distanceKm: 0.03,  prefixId: 'guide-de',  tweak: { prefix: 2500,  context: 180,  prompt: 30,  output: 90,  turns: 5,  think: 120,  patience: 10 } },
-      { persona: 'voice',  count: 10,  client: 'speaker',  link: 'wifi',  distanceKm: 0.03,  prefixId: 'guide-ja',  tweak: { prefix: 2500,  context: 180,  prompt: 30,  output: 90,  turns: 5,  think: 120,  patience: 10 } },
-      { persona: 'voice',  count: 10,  client: 'speaker',  link: 'wifi',  distanceKm: 0.03,  prefixId: 'guide-zh',  tweak: { prefix: 2500,  context: 180,  prompt: 30,  output: 90,  turns: 5,  think: 120,  patience: 10 } },
+      { persona: 'voice',  count: 36,  client: 'speaker',  link: 'wifi',  distanceKm: 0.03,  prefixId: 'guide-en',  tweak: { name: 'English visitors',  prefix: 2500,  context: 180,  prompt: 30,  output: 90,  turns: 5,  think: 120,  patience: 10 } },
+      { persona: 'voice',  count: 18,  client: 'speaker',  link: 'wifi',  distanceKm: 0.03,  prefixId: 'guide-es',  tweak: { name: 'Spanish visitors',  prefix: 2500,  context: 180,  prompt: 30,  output: 90,  turns: 5,  think: 120,  patience: 10 } },
+      { persona: 'voice',  count: 14,  client: 'speaker',  link: 'wifi',  distanceKm: 0.03,  prefixId: 'guide-fr',  tweak: { name: 'French visitors',  prefix: 2500,  context: 180,  prompt: 30,  output: 90,  turns: 5,  think: 120,  patience: 10 } },
+      { persona: 'voice',  count: 12,  client: 'speaker',  link: 'wifi',  distanceKm: 0.03,  prefixId: 'guide-de',  tweak: { name: 'German visitors',  prefix: 2500,  context: 180,  prompt: 30,  output: 90,  turns: 5,  think: 120,  patience: 10 } },
+      { persona: 'voice',  count: 10,  client: 'speaker',  link: 'wifi',  distanceKm: 0.03,  prefixId: 'guide-ja',  tweak: { name: 'Japanese visitors',  prefix: 2500,  context: 180,  prompt: 30,  output: 90,  turns: 5,  think: 120,  patience: 10 } },
+      { persona: 'voice',  count: 10,  client: 'speaker',  link: 'wifi',  distanceKm: 0.03,  prefixId: 'guide-zh',  tweak: { name: 'Mandarin visitors',  prefix: 2500,  context: 180,  prompt: 30,  output: 90,  turns: 5,  think: 120,  patience: 10 } },
     ],
     goal: 0.95, budget: 5000, minTier: 3, duration: 1800, par: 3700,
     parSetup: { box: 'mac-m5max-128', count: 1, mode: 'replica', model: 'qwen3-next-80b', quant: 'q2', kv: 'q8', runtime: 'llamacpp', overrides: { slots: 8, ctxPerSlot: 16384 } },
@@ -183,7 +184,7 @@ export const MISSIONS = [
       { persona: 'chat',  count: 12,  client: 'browser',  link: 'lan',  distanceKm: 0,  tweak: { prompt: 150,  context: 800,  prefix: 600,  output: 700,  turns: 4,  think: 300,  readTps: 5,  slo: { ttft: 6,  tps: 8,  e2e: 0 },  patience: 180 } },
     ],
     goal: 0.95, budget: 10000, minTier: 4.5, duration: 3600, par: 7400,
-    parSetup: { box: 'mac-m5max-128', count: 2, mode: 'split', model: 'qwen3-235b-a22b', quant: 'q6', kv: 'q4', runtime: 'llamacpp', overrides: { slots: 8, ctxPerSlot: 16384 } },
+    parSetup: { box: 'mac-m5max-128', count: 2, mode: 'split', model: 'qwen3-235b-a22b', quant: 'q6', kv: 'q8', runtime: 'mlx', overrides: { slots: 4, ctxPerSlot: 16384 } },
     hint: 'Tier 4.5 sets the memory before the crowd sets anything, and a lower precision lowers the tier. Then compare one big box with two smaller ones split, and check what each leaves for the KV cache.',
   },
 ];
@@ -221,7 +222,11 @@ export function scoreMission(m, report) {
     goalOk = goalOk && ok;
     checks.push({ ok, text: `${Math.round(report.util.avgW)} W average draw (solar limit ${m.maxWatts} W)` });
   }
-  const star1 = goalOk && tierOk;
+  // Par is found among boxes you can buy, so stars need one too.
+  const custom = report.engine.boxId === 'custom';
+  const buyable = !custom && report.engine.status !== 'announced';
+  if (!buyable) checks.push({ ok: false, text: custom ? 'A custom box cannot earn stars: its price and speed are your own numbers' : `${report.engine.box} is announced, not on sale yet: stars need a box you can buy` });
+  const star1 = goalOk && tierOk && buyable;
   const budgetOk = report.engine.priceUsd <= m.budget;
   checks.push({ ok: budgetOk, text: `$${report.engine.priceUsd.toLocaleString('en-US')} of hardware (budget $${m.budget.toLocaleString('en-US')})` });
   const parOk = star1 && report.engine.priceUsd <= m.par;

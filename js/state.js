@@ -58,11 +58,11 @@ export const CROWDS = {
   ] },
   dairy: { label: '120 barn controllers on one clock',
     note: 'One hundred and twenty barn controllers wake on the same minute, within 2 seconds of each other, and want an answer within 20. Spreading the timers helps more than a faster box.', groups: [
-    { persona: 'home',  count: 120,  client: 'ide',  link: 'lan',  protocol: 'http',  distanceKm: 0.05,  tweak: { name: 'Barn controller',  burst: true,  burstEvery: 300,  burstSpread: 2,  slo: { ttft: 0,  tps: 0,  e2e: 20 },  patience: 20 } },
+    { persona: 'home',  count: 120,  client: 'script',  link: 'lan',  protocol: 'http',  distanceKm: 0.05,  tweak: { name: 'Barn controller',  burst: true,  burstEvery: 300,  burstSpread: 2,  slo: { ttft: 0,  tps: 0,  e2e: 20 },  patience: 20 } },
   ] },
   robots: { label: '40 warehouse robots',
     note: 'Forty robots each wait for a 250-token plan within 10 seconds. One stream\'s speed decides, and a second box adds streams, not speed.', groups: [
-    { persona: 'home',  count: 40,  client: 'ide',  link: 'wifi',  protocol: 'http',  distanceKm: 0.02,  tweak: { prompt: 700,  prefix: 4000,  output: 250,  think: 240,  slo: { ttft: 0,  tps: 0,  e2e: 10 },  patience: 30 } },
+    { persona: 'robot',  count: 40,  client: 'script',  link: 'wifi',  distanceKm: 0.02 },
   ] },
 };
 

@@ -154,10 +154,12 @@ export const QUANTS = [
   { id: 'q4_0', label: 'Q4_0', bits: 4.54, tierLoss: 0.2, compute: 'fp16', hidden: true },
 ];
 
+// tierLoss: an 8-bit KV cache is close to lossless; a 4-bit one measurably
+// hurts long-context recall, so it costs a little capability.
 export const KV_DTYPES = [
-  { id: 'f16', label: 'FP16 KV', bytes: 2 },
-  { id: 'q8', label: 'Q8 / FP8 KV', bytes: 1.0625 },
-  { id: 'q4', label: 'Q4 KV', bytes: 0.5625 },
+  { id: 'f16', label: 'FP16 KV', bytes: 2, tierLoss: 0 },
+  { id: 'q8', label: 'Q8 / FP8 KV', bytes: 1.0625, tierLoss: 0 },
+  { id: 'q4', label: 'Q4 KV', bytes: 0.5625, tierLoss: 0.1 },
 ];
 
 export const modelById = (id) => MODELS.find((m) => m.id === id) || MODELS[1];
