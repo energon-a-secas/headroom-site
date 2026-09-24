@@ -123,7 +123,7 @@ function onLoadoutChange(ev) {
   const t = ev.target;
   let changed = false;
   if (t.dataset.k) changed = setKey(t.dataset.k, t.value, t);
-  else if (t.dataset.g !== undefined && t.dataset.f) changed = setGroupField(+t.dataset.g, t.dataset.f, t.value);
+  else if (t.dataset.g !== undefined && t.dataset.f) { changed = setGroupField(+t.dataset.g, t.dataset.f, t.value); state.preset = null; }
   else if (t.dataset.custom) { setCustom(t.dataset.custom, t.value); changed = true; }
   else if (t.dataset.econ) { state.sc.econ[t.dataset.econ] = Math.max(0, parseFloat(t.value) || 0); changed = true; }
   if (changed) commit();
@@ -244,15 +244,16 @@ function onClick(ev) {
   }
   if (t.dataset.crowd) {
     const preset = t.dataset.crowd;
-    state.mission = null; state.setup = 'people'; loadCrowd(CROWDS[preset].groups); commit();
+    state.mission = null; state.preset = preset; state.setup = 'people'; loadCrowd(CROWDS[preset].groups); commit();
     document.querySelector(`#scenarioBar [data-crowd="${preset}"]`)?.focus({ preventScroll: true }); return;
   }
   if (act === 'add-group') {
     const last = state.sc.groups[state.sc.groups.length - 1];
+    state.preset = null;
     state.sc.groups.push({ id: newGroupId(), persona: 'chat', count: 5, client: 'phone', link: last?.link || 'wifi', protocol: '', distanceKm: last?.distanceKm ?? 0.01 });
     commit(); return;
   }
-  if (act === 'remove-group') { state.sc.groups.splice(+t.dataset.g, 1); commit(); return; }
+  if (act === 'remove-group') { state.sc.groups.splice(+t.dataset.g, 1); state.preset = null; commit(); return; }
   if (act === 'close-redline') { state.redline = { busy: false, result: null, probes: [] }; renderRedline(); return; }
   if (act === 'load-redline') {
     state.sc = scaleCrowd(state.sc, +t.dataset.n);

@@ -44,10 +44,11 @@ Headroom tells you whether a local AI box will serve your people before you pay 
 - **Quick start** -- a first-visit welcome that can be reopened from the header
 - **Find the redline** -- doubles the crowd until answers fail, then bisects; when the network gives out first, it also reports what the box alone would hold
 - **Compare boxes** -- the same crowd on every box in the catalog, with redlines, cost per user and wall power
-- **Missions** -- nine scenarios with a budget and a par price; three stars for serving everyone on the cheapest hardware that works
+- **Missions** -- seventeen scenarios with a budget and a par price; three stars for serving every group on the cheapest hardware that works, with pars proven on four seeds
 - **Real protocols and links** -- SSE per-token events vs WebSocket batches, Wi-Fi airtime, Bluetooth hub limits, LoRa duty cycles, VPN distance
 - **Two server designs** -- llama.cpp and Ollama slots with preallocated context, vLLM, SGLang and TensorRT-LLM paged KV with prefix caching
 - **Calibrated, and shows its work** -- published benchmarks next to the model's predictions, typical error about 11%
+- **Tested** -- `make test` pins every lesson the simulator teaches as a use case, in Node with no dependencies
 - **Costs** -- electricity, amortization and payback against the same tokens from a cloud API
 - **Shareable** -- one link reproduces the exact scenario; everything runs in the browser
 

@@ -70,7 +70,10 @@ Vendored from `packages/neorgon-ui/`, never edit in place; run the sync script i
 - **`.stack` is the template's vertical-rhythm utility.** Horizontal bars are `.bar-stack`; reusing `.stack` draws them as full-width stripes a pixel tall (it shipped that way once).
 - **Every edit settles 20 simulated minutes** (`rebuild()` in `js/runner.js`) so a change shows an answer; Restart is `rebuild({ settle: false })` for watching from zero. A new code path that rebuilds must pick one deliberately.
 - **Loadout re-renders on every change**, so `commit()` in `js/events.js` restores focus by data attribute. A new control needs a `data-*` key `controlKey()` knows, or keyboard users lose their place.
-- **Wi-Fi's 64-client cap usually beats the box.** The redline search reports `boxUsers` (the same search with link caps lifted) when `why === 'connections'`; do not "fix" a redline of 63 by raising the cap.
+- **Wi-Fi's 64-client cap often beats the box.** The redline search reports `boxUsers` (the same search with link caps lifted) when `why === 'connections'`; do not "fix" a redline of 63 by raising the cap. The default scenario (gpt-oss-120b on a Spark) is now bandwidth-limited on most seeds, because a Kindle waits out gpt-oss's hidden reasoning.
+- **What precedes the first word is modelled.** `models.js` `reasons.min`, persona `lead` and client `thinking` decide when the first visible token leaves the server (`firstIdx` in `sim.js`). A voice lesson that "breaks" after a model change is usually this.
+- **Prompt caches key on content** (`prefixKey` in `sim.js`), not on the group. Groups with genuinely different system prompts need distinct `prefixId`s (see the six-language mission).
+- **Pars are proven on four seeds.** `make pars-check` (minutes) proves each par is still the cheapest setup; `make test` only re-checks the recorded `parSetup`.
 - **Playwright's default browser here runs at 80% zoom**, so a 1440 viewport measures 1800 CSS px. Measure layout in a context whose `clientWidth` you have checked.
 
 ## Do not touch

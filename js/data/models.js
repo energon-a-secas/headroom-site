@@ -144,13 +144,13 @@ export const MODELS = [
 // supports low-precision kernels on this hardware.
 export const QUANTS = [
   { id: 'f16', label: 'BF16 / FP16', bits: 16, tierLoss: 0, compute: 'fp16' },
-  { id: 'q8', label: 'Q8_0 / FP8', bits: 8.5, tierLoss: 0, compute: 'fp8' },
-  { id: 'q6', label: 'Q6_K', bits: 6.56, tierLoss: 0, compute: 'fp16' },
-  { id: 'q5', label: 'Q5_K_M', bits: 5.69, tierLoss: 0.05, compute: 'fp16' },
-  { id: 'q4', label: 'Q4_K_M', bits: 4.85, tierLoss: 0.15, compute: 'fp4' },
+  { id: 'q8', label: '8-bit (Q8_0, FP8)', bits: 8.5, tierLoss: 0, compute: 'fp8' },
+  { id: 'q6', label: '6-bit (Q6_K)', bits: 6.56, tierLoss: 0, compute: 'fp16' },
+  { id: 'q5', label: '5-bit (Q5_K_M)', bits: 5.69, tierLoss: 0.05, compute: 'fp16' },
+  { id: 'q4', label: '4-bit (Q4_K_M, AWQ)', bits: 4.85, tierLoss: 0.15, compute: 'fp4' },
   { id: 'mxfp4', label: 'MXFP4', bits: 4.25, tierLoss: 0, compute: 'fp4' },
-  { id: 'q3', label: 'Q3_K_M', bits: 3.91, tierLoss: 0.45, compute: 'fp16' },
-  { id: 'q2', label: 'Q2_K', bits: 2.96, tierLoss: 1.0, compute: 'fp16' },
+  { id: 'q3', label: '3-bit (Q3_K_M)', bits: 3.91, tierLoss: 0.45, compute: 'fp16' },
+  { id: 'q2', label: '2-bit (Q2_K)', bits: 2.96, tierLoss: 1.0, compute: 'fp16' },
   { id: 'q4_0', label: 'Q4_0', bits: 4.54, tierLoss: 0.2, compute: 'fp16', hidden: true },
 ];
 

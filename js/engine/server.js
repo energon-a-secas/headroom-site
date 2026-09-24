@@ -33,7 +33,7 @@ export function makeServer(eng, idx) {
     host: new Map(), hostBytes: 0,
     cache: new Map(), cacheBytes: 0, pinnedBytes: 0,
     stats: { busyS: 0, memS: 0, compS: 0, bytes: 0, flops: 0, tokOut: 0, tokPrefill: 0, tokCached: 0,
-      batchTime: 0, blockedSlots: 0, blockedKv: 0, iters: 0, steps: 0, kvBytes: 0 },
+      batchTime: 0, blockedSlots: 0, blockedKv: 0, iters: 0, steps: 0, kvBytes: 0, memBoundS: 0, compBoundS: 0 },
   };
 }
 
@@ -191,6 +191,7 @@ export function finish(eng, srv, t1, hooks) {
   s.memS += it.k * it.st.tMem; s.compS += it.k * it.st.tComp;
   s.bytes += it.k * it.st.bytes; s.flops += it.k * it.st.flops;
   s.kvBytes += it.k * it.kvRead;
+  if (it.st.tMem >= it.st.tComp) s.memBoundS += it.dur; else s.compBoundS += it.dur;
   s.batchTime += it.decode.length * it.dur;
 
   const done = [];

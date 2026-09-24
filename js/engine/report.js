@@ -46,6 +46,7 @@ function groupSummary(sim, Gp, T) {
   return {
     gi: Gp.gi, persona: P.name, personaId: P.id, client: Gp.client.name, link: Gp.link.def.name,
     linkId: Gp.link.def.id, maxClients: Gp.link.maxClients,
+    waitsForThinking: !Gp.client.thinking,
     count: Gp.users.length, unserved: Gp.unserved, offReason: Gp.offReason,
     n, pass: S.pass, miss: S.miss + late, late,
     passPct: n ? S.pass / n : null,
@@ -78,8 +79,10 @@ export function buildReport(sim, duration) {
   const busy = busyS / (n * D);
   const bwUtil = sum((s) => s.bytes) / (eng.peakBw * n * D);
   const computeUtil = sum((s) => s.flops) / (eng.peakFlops * n * D);
-  const memS = sum((s) => s.memS), compS = sum((s) => s.compS);
-  const memShare = memS + compS ? memS / (memS + compS) : 1;
+  // Which limit bound the iterations, weighted by time: an iteration is
+  // memory-bound when reading takes longer than computing.
+  const memBound = sum((s) => s.memBoundS), compBound = sum((s) => s.compBoundS);
+  const memShare = memBound + compBound ? memBound / (memBound + compBound) : 1;
   const kvPeak = Math.max(...sim.servers.map((s) => s.kvPeak)) / Math.max(1, eng.kvPool);
   const avgBatch = busyS ? sum((s) => s.batchTime) / busyS : 0;
   const cached = sum((s) => s.tokCached), prefilled = sum((s) => s.tokPrefill);
@@ -119,7 +122,7 @@ function findBottleneck({ eng, groups, util, blame, fails, passRate, tot }) {
     const why = g.offReason === 'range'
       ? `${one ? 'is' : 'are'} out of range of the ${g.link}`
       : `cannot join: the ${g.link} holds ${g.maxClients} clients`;
-    return { id: 'connections', label: 'Connections', text: `${g.unserved} ${g.persona.toLowerCase()} ${one ? 'user' : 'users'} ${why}.` };
+    return { id: 'connections', label: 'Connections', text: `${g.unserved} ${g.persona} ${one ? 'user' : 'users'} ${why}.` };
   }
   const cut = fails.truncated || 0;
   const ctxFails = (fails.context || 0) + cut;
@@ -128,7 +131,7 @@ function findBottleneck({ eng, groups, util, blame, fails, passRate, tot }) {
       ? `${eng.rt.name} cut ${cut} prompts to fit its ${fmtK(eng.slotCtx)} window and answered without their start, so those answers were on time and wrong.`
       : `${ctxFails} requests were longer than the ${fmtK(eng.slotCtx)} context the server was started with.` };
   }
-  const missing = passRate === null || passRate < 0.95;
+  const missing = passRate === null || passRate < 0.95 || groups.some((g) => g.n > 0 && g.passPct !== null && g.passPct < 0.95);
   if (missing) {
     const totalBlame = Object.values(blame).reduce((a, b) => a + b, 0);
     const gaveUp = fails['gave up'] || 0;
@@ -172,7 +175,7 @@ function judge({ passRate, util, tot, bottleneck, groups }) {
   if (passRate < 0.95) return { id: 'tight', label: 'Tight', text: `${p}% of answers on target, short of 95%. ${bottleneck.label} is the limit.` };
   // A pooled share can hide one group that is failing behind an easy one.
   const worst = groups.filter((g) => g.n > 0 && g.passPct !== null).sort((a, b) => a.passPct - b.passPct)[0];
-  if (worst && worst.passPct < 0.95) return { id: 'tight', label: 'Tight', text: `${p}% overall, but ${worst.count} x ${worst.persona.toLowerCase()} get only ${Math.round(worst.passPct * 100)}% on target.` };
+  if (worst && worst.passPct < 0.95) return { id: 'tight', label: 'Tight', text: `${p}% overall, but ${worst.count} x ${worst.persona} get only ${Math.round(worst.passPct * 100)}% on target.` };
   if (util.busy > 0.85) return { id: 'tight', label: 'Tight', text: `${p}% of answers on target with the box ${Math.round(util.busy * 100)}% busy. A few more users will tip it over.` };
   if (util.busy < 0.25) return { id: 'overkill', label: 'Overkill', text: `${p}% on target, but the box idles ${Math.round((1 - util.busy) * 100)}% of the time. A cheaper box may do the same job.` };
   return { id: 'right', label: 'Right-sized', text: `${p}% of answers on target with the box ${Math.round(util.busy * 100)}% busy. Room for more users before answers slip.` };
@@ -233,7 +236,9 @@ function advise(eng, b, util, groups, verdict) {
       out.push('Generation is compute-bound at this batch size. A lower-precision format, or more tensor TFLOPS, helps.');
       break;
     case 'prefill':
-      out.push(`Prompt reading is compute-bound (${Math.round(util.cacheHit * 100)}% of prompt tokens came from cache). Shorter prompts, prefix caching, or more tensor TFLOPS help.`);
+      out.push(eng.rt.prefixCache
+        ? `Prompt reading is compute-bound, and prefix caching is already on (${Math.round(util.cacheHit * 100)}% of prompt tokens came from cache). Shorter prompts, a model with fewer active parameters, or more tensor TFLOPS help.`
+        : 'Prompt reading is compute-bound and prefix caching is off: turn it on so shared system prompts are read once.');
       break;
     case 'link':
       out.push('The link is the bottleneck. Send tokens in WebSocket batches instead of one event each, send whole answers, or move these users to a wired link.');
@@ -243,7 +248,7 @@ function advise(eng, b, util, groups, verdict) {
       break;
     case 'context':
       out.push(eng.rt.batching === 'slots'
-        ? `Each slot holds ${fmtK(eng.slotCtx)} tokens. Raise the context per slot (fewer slots), or use a paged runtime.`
+        ? `Each slot holds ${fmtK(eng.slotCtx)} tokens. Raise the context per slot${eng.maxBatch > 1 ? ' (with fewer slots if memory is short)' : ''}, or use a paged runtime.`
         : 'Raise the context cap, or trim what each request sends.');
       break;
     case 'connections':
@@ -251,9 +256,13 @@ function advise(eng, b, util, groups, verdict) {
       break;
     default: break;
   }
+  // A reasoning model thinks before every answer; a device that cannot show
+  // that thinking waits for all of it before its first word.
+  const lag = groups.find((g) => g.waitsForThinking && g.slo.ttft && g.passPct !== null && g.passPct < 0.95);
+  if (eng.model.reasons && lag) out.unshift(`${eng.model.name} always reasons before it answers, and a ${lag.client.toLowerCase()} cannot show thinking, so at least ${eng.model.reasons.min} hidden tokens come before the first word. Pick a model that answers straight away.`);
   if (verdict.id === 'overkill') out.push('Open Compare to see which cheaper boxes still pass this crowd.');
   if (eng.quant.tierLoss >= 0.45) out.push(`${eng.quant.label} costs noticeable answer quality; the capability tier drops to ${fmtTier(eng.tier)}.`);
   const trunc = groups.reduce((a, g) => a + g.truncated, 0);
-  if (trunc > 0) out.push(`${trunc} conversations were cut short to fit the ${fmtK(eng.slotCtx)} context; users lose earlier turns.`);
+  if (trunc > 0) out.push(`${trunc} ${trunc === 1 ? 'conversation was' : 'conversations were'} cut short to fit the ${fmtK(eng.slotCtx)} context; users lose earlier turns.`);
   return out.slice(0, 3);
 }

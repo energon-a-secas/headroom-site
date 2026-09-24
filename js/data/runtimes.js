@@ -72,7 +72,7 @@ export const RUNTIMES = [
     id: 'mlx', name: 'MLX server', batching: 'slots',
     slots: 4, ctxPerSlot: 16384, maxBatch: 4,
     bwEff: 0.85, computeEff: 0.5, stepMs: 1.5, perSeqMs: 0.5,
-    prefixCache: true, moeScale: 1, chunk: 512, lowPrecision: false,
+    prefixCache: true, hostCacheGB: 8, moeScale: 1, chunk: 512, lowPrecision: false,
     platforms: ['metal'],
     blurb: 'Apple silicon native. Good single-user speed, modest batching.',
   },

@@ -230,12 +230,22 @@
           <li><strong>Mixture-of-experts prompts</strong> split into many small matrix multiplies, one per expert, which run far below peak. That is why a Strix Halo box reads a gpt-oss-120b prompt at about a quarter of a DGX Spark's speed while generating almost as fast.</li>
         </ul>
 
+        <h3>What comes before the first word</h3>
+        <p>The first generated token is not always the first thing a person sees or hears. Headroom counts three things that come before it:</p>
+        <ul>
+          <li><strong>Hidden reasoning.</strong> gpt-oss always thinks before it answers, about 60 tokens even at its lowest effort, and DeepSeek R1 far more. A chat app or an IDE shows that thinking as it streams, so the reader sees progress; a speaker or an e-ink page cannot, and waits for all of it.</li>
+          <li><strong>The speech buffer.</strong> A speech engine needs about 60 characters, roughly 16 tokens, before it starts talking.</li>
+          <li><strong>Tool calls.</strong> A voice command to a smart home is usually a tool call the model writes before it replies.</li>
+        </ul>
+        <p>That is why the voice missions reward a model that answers straight away over a bigger one that reasons first.</p>
+
         <h3>Memory decides concurrency</h3>
         <p>After the weights, the rest of usable memory holds KV cache: every token of every live conversation costs a fixed number of bytes that depends on the model's layers and attention heads. Two server designs spend it differently.</p>
         <ul>
           <li><strong>Slots</strong> (llama.cpp, Ollama, MLX): a fixed number of parallel slots, each with its own preallocated context. Extra users queue for a slot. A request longer than a slot's context fails, which is the classic "Ollama cannot hold my coding agent's system prompt" surprise.</li>
           <li><strong>Paged</strong> (vLLM, SGLang, TensorRT-LLM): one shared pool handed out in blocks. Concurrency is limited by memory, not by a slot count, and a shared system prompt is stored once.</li>
         </ul>
+        <p>Prompt caches work by content: groups that send the same system prompt share one cached copy, and six different prompts (six languages, say) compete for room. Recent llama.cpp and MLX servers also park evicted prompts in host memory and restore them. Ollama is different in one way that matters: a prompt longer than its window is cut to fit and answered anyway, so the answer arrives on time and without its start.</p>
 
         <h3>The network is mostly about packets, not bandwidth</h3>
         <p>Text is tiny. What hurts is round trips (distance, handshakes, radio scheduling) and, on shared radios, per-packet airtime: a Wi-Fi or Bluetooth frame costs the same preamble and acknowledgement whether it carries one token or a kilobyte. Streaming one OpenAI-style event per token to 50 clients multiplies that cost. On LoRa it is fatal: a single 200-byte packet takes more than a second of airtime, and European rules cap transmit time at 10%. Headroom models each shared radio as one queue that every client's traffic waits in.</p>

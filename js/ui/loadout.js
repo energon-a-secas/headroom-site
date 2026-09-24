@@ -185,6 +185,7 @@ function crowdPanel(sc, state) {
   return `<section class="panel" aria-label="Crowd">
     <h3 class="panel__title">Crowd <span class="muted">${fmtInt(total)} users</span></h3>
     ${locked ? '<p class="note" style="margin:0 0 10px">The mission sets the crowd. Tune the box, model and server.</p>' : ''}
+    ${!locked && state.preset && CROWDS[state.preset]?.note ? `<p class="note" style="margin:0 0 10px">${e(CROWDS[state.preset].note)}</p>` : ''}
     <div class="${locked ? 'locked' : ''}"${locked ? ' inert' : ''}>
       ${sc.groups.map((g, i) => groupEditor(g, i, sc.groups.length)).join('')}
       <button type="button" class="btn btn--ghost btn--sm btn--block" data-act="add-group"${sc.groups.length >= 8 ? ' disabled' : ''}>+ Add another group</button>

@@ -28,32 +28,41 @@ export function defaultScenario() {
 
 /** Crowd presets for the loadout's quick picks. */
 export const CROWDS = {
-  kindle: { label: '50 Kindle readers', groups: [{ persona: 'reader', count: 50, client: 'kindle', link: 'wifi', distanceKm: 0.015 }] },
-  family: { label: 'Family of five', groups: [
+  kindle: { label: '50 Kindle readers',
+    note: 'Fifty readers ask about the page they are on. E-ink shows nothing until the answer is complete, so every token, hidden thinking included, counts against 20 seconds.', groups: [{ persona: 'reader', count: 50, client: 'kindle', link: 'wifi', distanceKm: 0.015 }] },
+  family: { label: 'Family of five',
+    note: 'Two parents, a student and two kitchen speakers. The speakers need their first word within 1.2 seconds while everyone else is using the box.', groups: [
     { persona: 'chat', count: 2, client: 'phone', link: 'wifi', distanceKm: 0.01 },
     { persona: 'student', count: 1, client: 'browser', link: 'wifi', distanceKm: 0.01, tweak: { burst: false, think: 60 } },
     { persona: 'voice', count: 2, client: 'speaker', link: 'wifiweak', distanceKm: 0.02 },
   ] },
-  crew: { label: '6 coding agents', groups: [{ persona: 'coder', count: 6, client: 'ide', link: 'lan', distanceKm: 0 }] },
-  office: { label: 'Office of 50', groups: [
+  crew: { label: '6 coding agents',
+    note: 'Six coding agents with a 7,000-token system prompt and contexts that grow all day. Check the context window and the KV cache before the speed.', groups: [{ persona: 'coder', count: 6, client: 'ide', link: 'lan', distanceKm: 0 }] },
+  office: { label: 'Office of 50',
+    note: 'Thirty-five people chatting and fifteen attaching documents to every question, all on office Wi-Fi.', groups: [
     { persona: 'chat', count: 35, client: 'browser', link: 'wifi', distanceKm: 0.02 },
     { persona: 'rag', count: 15, client: 'browser', link: 'wifi', distanceKm: 0.02 },
   ] },
-  class: { label: 'Classroom of 30', groups: [{ persona: 'student', count: 30, client: 'browser', link: 'wifi', distanceKm: 0.02 }] },
-  mesh: { label: 'LoRa hikers', groups: [{ persona: 'chat', count: 12, client: 'badge', link: 'lora', protocol: 'mesh', distanceKm: 5,
+  class: { label: 'Classroom of 30',
+    note: 'Thirty students submit within twenty seconds of each other every five minutes. The burst decides, not the average.', groups: [{ persona: 'student', count: 30, client: 'browser', link: 'wifi', distanceKm: 0.02 }] },
+  mesh: { label: 'LoRa hikers',
+    note: 'Twelve hikers on a LoRa mesh up to 5 km out. The radio costs seconds per answer, so compact packets keep the channel free.', groups: [{ persona: 'chat', count: 12, client: 'badge', link: 'lora', protocol: 'mesh', distanceKm: 5,
     tweak: { output: 60, prefix: 200, history: false, think: 240, slo: { ttft: 0, tps: 0, e2e: 180 }, patience: 600 } }] },
-  monorepo: { label: '3 agents at 100K tokens', groups: [
+  monorepo: { label: '3 agents, up to 100K tokens',
+    note: 'Three agents whose conversations grow toward 100,000 tokens. At that depth every generated token rereads the whole KV cache, so KV bytes per token set the speed.', groups: [
     { persona: 'coder',  count: 3,  client: 'ide',  link: 'lan',  distanceKm: 0,  tweak: { prompt: 6000,  prefix: 12000,  output: 600,  turns: 14,  think: 6 } },
   ] },
-  swarm: { label: '24-agent swarm', groups: [
-    { persona: 'coder',  count: 24,  client: 'ide',  link: 'lan',  distanceKm: 0,  tweak: { prompt: 300,  prefix: 6000,  output: 120,  turns: 40,  think: 2,  slo: { ttft: 0,  tps: 0,  e2e: 6 },  patience: 60 } },
+  swarm: { label: '24 agents, 8 s steps',
+    note: 'Twenty-four agents that never rest, each step writing 240 tokens (half of them hidden reasoning) within 8 seconds. Step speed at a full batch decides; memory size does not.', groups: [
+    { persona: 'coder',  count: 24,  client: 'ide',  link: 'lan',  distanceKm: 0,  tweak: { prompt: 400,  prefix: 6000,  output: 120,  reason: 120,  turns: 30,  think: 3,  slo: { ttft: 0,  tps: 0,  e2e: 8 },  patience: 60 } },
   ] },
-  dairy: { label: '120 dairy machines', groups: [
-    { persona: 'home',  count: 60,  client: 'ide',  link: 'wifiweak',  protocol: 'http',  distanceKm: 0.05,  tweak: { burst: true,  slo: { ttft: 0,  tps: 0,  e2e: 20 },  patience: 60 } },
-    { persona: 'home',  count: 60,  client: 'ide',  link: 'wifiweak',  protocol: 'http',  distanceKm: 0.05,  tweak: { burst: true,  slo: { ttft: 0,  tps: 0,  e2e: 20 },  patience: 60 } },
+  dairy: { label: '120 barn controllers on one clock',
+    note: 'One hundred and twenty barn controllers wake on the same minute, within 2 seconds of each other, and want an answer within 20. Spreading the timers helps more than a faster box.', groups: [
+    { persona: 'home',  count: 120,  client: 'ide',  link: 'lan',  protocol: 'http',  distanceKm: 0.05,  tweak: { name: 'Barn controller',  burst: true,  burstEvery: 300,  burstSpread: 2,  slo: { ttft: 0,  tps: 0,  e2e: 20 },  patience: 20 } },
   ] },
-  robots: { label: '40 warehouse robots', groups: [
-    { persona: 'home',  count: 40,  client: 'ide',  link: 'wifi',  protocol: 'http',  distanceKm: 0.02,  tweak: { prompt: 700,  prefix: 4000,  output: 250,  think: 60,  slo: { ttft: 0,  tps: 0,  e2e: 10 },  patience: 30 } },
+  robots: { label: '40 warehouse robots',
+    note: 'Forty robots each wait for a 250-token plan within 10 seconds. One stream\'s speed decides, and a second box adds streams, not speed.', groups: [
+    { persona: 'home',  count: 40,  client: 'ide',  link: 'wifi',  protocol: 'http',  distanceKm: 0.02,  tweak: { prompt: 700,  prefix: 4000,  output: 250,  think: 240,  slo: { ttft: 0,  tps: 0,  e2e: 10 },  patience: 30 } },
   ] },
 };
 
@@ -69,6 +78,7 @@ export const state = {
   report: null,
   mission: null,        // mission id while a mission's crowd is loaded
   progress: {},         // mission id -> best stars
+  preset: null,         // crowd preset last loaded, for its note
   redline: { busy: false, result: null, probes: [] },
   compare: { busy: false, rows: [], redline: true, sort: 'redline' },
 };
