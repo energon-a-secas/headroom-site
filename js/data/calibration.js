@@ -37,6 +37,7 @@ export const CALIBRATION = [
   { box: 'dgx-spark', model: 'qwen3-30b-a3b', quant: 'q4', runtime: 'llamacpp', tg: 89.3, pp: 2541, chunk: 512, source: 'DandinPower bench, 2025-12', url: 'https://github.com/DandinPower/llama.cpp_bench/blob/main/dgx_spark/report.md' },
   { box: 'dgx-spark', model: 'qwen3-32b', quant: 'q4', runtime: 'llamacpp', tg: 10.7, pp: 762, chunk: 512, source: 'DandinPower bench, 2025-12', url: 'https://github.com/DandinPower/llama.cpp_bench/blob/main/dgx_spark/report.md' },
   { box: 'dgx-spark', model: 'llama-3.1-8b', quant: 'q8', runtime: 'sglang', tg: 20.5, pp: 7991, chunk: 2048, source: 'LMSYS review, SGLang FP8', url: LMSYS },
+  { box: 'dgx-spark', model: 'gpt-oss-120b', quant: 'mxfp4', runtime: 'vllm', tg: 36, pp: null, chunk: 2048, source: 'NVIDIA forum, stock vLLM, one Spark, 2025-12 (patched community builds reach 57 to 60)', url: 'https://forums.developer.nvidia.com/t/353338' },
   { box: 'dgx-spark', model: 'gpt-oss-120b', quant: 'mxfp4', runtime: 'vllm', tg: null, pp: 4892, chunk: 2048, source: 'NVIDIA forum, community CUTLASS vLLM builds, early 2026 (stock vLLM is slower)', url: 'https://forums.developer.nvidia.com/t/356651' },
   { box: 'dgx-spark', model: 'gpt-oss-20b', quant: 'mxfp4', runtime: 'ollama', tg: 49.7, pp: 2053, chunk: 512, source: 'LMSYS review, Ollama, 2025-10', url: LMSYS },
   { box: 'ryzen-ai-halo', model: 'gpt-oss-20b', quant: 'mxfp4', runtime: 'llamacpp', tg: 73.1, pp: 1787, chunk: 512, source: 'kyuz0 ROCm, 2026-05', url: KY },
@@ -63,10 +64,11 @@ export const CALIBRATION = [
 ];
 
 export const BATCH_CALIBRATION = [
-  { box: 'dgx-spark', model: 'gpt-oss-20b', quant: 'mxfp4', runtime: 'llamacpp', ctx: 512, points: [[1, 80.1], [8, 271.8], [32, 681.5]], source: 'llama-batched-bench b7946', url: GG },
-  { box: 'dgx-spark', model: 'gpt-oss-120b', quant: 'mxfp4', runtime: 'llamacpp', ctx: 512, points: [[1, 57.1], [8, 159.2], [32, 353.3]], source: 'llama-batched-bench b7946', url: GG },
-  { box: 'dgx-spark', model: 'qwen3-30b-a3b', quant: 'q8', runtime: 'llamacpp', ctx: 512, points: [[1, 58.4], [8, 153.4], [32, 346.5]], source: 'llama-batched-bench b7946 (Qwen3-Coder-30B-A3B)', url: GG },
-  { box: 'dgx-spark', model: 'qwen2.5-7b', quant: 'q8', runtime: 'llamacpp', ctx: 512, points: [[1, 29.1], [8, 194.2], [32, 589.2]], source: 'llama-batched-bench b7946', url: GG },
+  { box: 'dgx-spark', model: 'gpt-oss-20b', quant: 'mxfp4', runtime: 'llamacpp', ctx: 512, points: [[1, 80.1], [2, 109.7], [4, 156.0], [8, 271.8], [32, 681.5]], source: 'llama-batched-bench b7946', url: GG },
+  { box: 'dgx-spark', model: 'gpt-oss-120b', quant: 'mxfp4', runtime: 'llamacpp', ctx: 512, points: [[1, 57.1], [2, 73.3], [4, 98.5], [8, 159.2], [32, 353.3]], source: 'llama-batched-bench b7946', url: GG },
+  { box: 'dgx-spark', model: 'qwen3-30b-a3b', quant: 'q8', runtime: 'llamacpp', ctx: 512, points: [[1, 58.4], [2, 70.4], [4, 98.3], [8, 153.4], [32, 346.5]], source: 'llama-batched-bench b7946 (Qwen3-Coder-30B-A3B)', url: GG },
+  { box: 'dgx-spark', model: 'qwen2.5-7b', quant: 'q8', runtime: 'llamacpp', ctx: 512, points: [[1, 29.1], [2, 54.0], [4, 104.2], [8, 194.2], [32, 589.2]], source: 'llama-batched-bench b7946', url: GG },
+  { box: 'dgx-spark', model: 'glm-4.7-flash', quant: 'q8', runtime: 'llamacpp', ctx: 512, points: [[1, 46.2], [2, 61.9], [4, 87.8], [8, 125.3], [32, 283.2]], source: 'llama-batched-bench, Q8_0', url: GG },
   { box: 'dgx-spark', model: 'gpt-oss-120b', quant: 'mxfp4', runtime: 'vllm', ctx: 1900, points: [[1, 33.5], [64, 373], [256, 863]], source: 'dendro-logic, vLLM 26.03, 2026-04', url: DENDRO },
   { box: 'dgx-spark', model: 'llama-3.1-8b', quant: 'q8', runtime: 'sglang', ctx: 1500, points: [[32, 368]], source: 'LMSYS review, SGLang FP8', url: LMSYS },
 ];
