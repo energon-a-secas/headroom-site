@@ -5,6 +5,7 @@ import { state, loadSaved } from './state.js';
 import { rebuild, on } from './runner.js';
 import { render, renderFrame, renderReport } from './render.js';
 import { bindEvents } from './events.js';
+import { showFirstWelcome } from './ui/welcome.js';
 
 function init() {
   loadSaved(state);
@@ -15,6 +16,7 @@ function init() {
   rebuild();
   render();
   bindEvents();
+  showFirstWelcome();
 }
 
 init();

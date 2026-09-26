@@ -53,8 +53,9 @@ function memoryBlock(r, sim) {
 
 export function renderScore(el, r, sim) {
   if (!r) { el.innerHTML = ''; return; }
+  const heading = `<div class="score-heading"><h3>Your results</h3><span>${sim?.t ? `${Math.floor(sim.t / 60)} min simulated` : 'Ready to test'}</span></div>`;
   if (!r.ok) {
-    el.innerHTML = `${verdictBlock(r.verdict)}
+    el.innerHTML = `${heading}${verdictBlock(r.verdict)}
       <section class="panel" style="margin-top:12px"><h3 class="panel__title">Ways to make it fit</h3><ul class="list">${r.advice.map((a) => `<li>${e(a)}</li>`).join('')}</ul></section>
       ${memoryBlock(r)}`;
     return;
@@ -72,7 +73,7 @@ export function renderScore(el, r, sim) {
       ? { id: 'idle', label: 'Warming up', text: 'Statistics start after the first simulated minute, once the crowd has settled into its rhythm.' }
       : r.verdict;
 
-  el.innerHTML = `${verdictBlock(verdict)}
+  el.innerHTML = `${heading}${verdictBlock(verdict)}
   <section class="panel" style="margin-top:12px" aria-label="Key numbers">
     <div class="tiles">
       ${tile('Answers on target', r.passRate == null ? 'none yet' : fmtPct(r.passRate), `${fmtInt(r.requests)} answers measured`)}

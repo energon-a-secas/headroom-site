@@ -3,7 +3,7 @@
 // attributes (data-k, data-g/data-f, data-custom, data-econ, data-act), so
 // one delegated handler per event type covers the whole page.
 
-import { state, save, defaultScenario, newGroupId, CROWDS, shareUrl, cloneScenario } from './state.js';
+import { state, save, loadShared, defaultScenario, newGroupId, CROWDS, shareUrl, cloneScenario } from './state.js';
 import { $, showToast, debounce, clamp } from './utils.js';
 import { rebuild, play, pause, skip, runJob, redraw } from './runner.js';
 import { render, renderTransport, renderRedline, renderCompareView, renderTabs } from './render.js';
@@ -14,12 +14,19 @@ import { linkById } from './data/crowd.js';
 import { missionById, scoreMission } from './data/missions.js';
 import { runtimeOn, scaleCrowd } from './engine/batch.js';
 import { resetFloorLayout } from './ui/floor.js';
+import { renderLoadout } from './ui/loadout.js';
+import { setSceneView, moveCamera } from './ui/scene.js';
+import { openWelcome, closeWelcome, restoreWelcomeFocus } from './ui/welcome.js';
+import { createSetupScenario, createCustomBuild } from './data/setups.js';
+import { resolveEnclosure, enclosureFor } from './data/enclosures.js';
 
 /** A selector that finds the same control after the loadout re-renders. */
 function controlKey(el) {
   if (!el || !el.closest || !el.closest('#loadout')) return null;
-  for (const a of ['k', 'custom', 'econ', 'crowd', 'act']) if (el.dataset[a]) return `[data-${a}="${el.dataset[a]}"]`;
   if (el.dataset.g !== undefined && el.dataset.f) return `[data-g="${el.dataset.g}"][data-f="${el.dataset.f}"]`;
+  if (el.dataset.act === 'remove-group') return `[data-act="remove-group"][data-g="${el.dataset.g}"]`;
+  if (el.dataset.setup) return `.setup-nav [data-setup="${el.dataset.setup}"]`;
+  for (const a of ['k', 'custom', 'econ', 'crowd', 'act']) if (el.dataset[a]) return `[data-${a}="${el.dataset[a]}"]`;
   return null;
 }
 
@@ -40,6 +47,7 @@ function setKey(k, v, input) {
   switch (k) {
     case 'box.id': {
       sc.box.id = v;
+      sc.box.enclosure = '';
       if (v === 'custom' && !sc.box.custom) sc.box.custom = cloneScenario(CUSTOM_BOX);
       const box = boxById(v, sc.box.custom);
       const rt = runtimeOn(box, sc.runtime.id);
@@ -48,6 +56,14 @@ function setKey(k, v, input) {
       break;
     }
     case 'box.count': sc.box.count = clamp(parseInt(v, 10) || 1, 1, 8); break;
+    case 'box.enclosure': {
+      sc.box.enclosure = resolveEnclosure(sc.box.id, v);
+      if (sc.box.id === 'custom' && sc.box.custom) {
+        const name = `Custom ${enclosureFor(sc.box.enclosure)?.name.toLowerCase() || 'build'}`;
+        sc.box.custom.name = name; sc.box.custom.short = name;
+      }
+      break;
+    }
     case 'box.mode': sc.box.mode = v; break;
     case 'model.id': {
       sc.model.id = v;
@@ -185,7 +201,52 @@ function onClick(ev) {
   const t = ev.target.closest('button, [data-box], [data-sort]');
   if (!t) return;
   const act = t.dataset.act;
-  if (t.dataset.crowd) { state.mission = null; loadCrowd(CROWDS[t.dataset.crowd].groups); commit(); return; }
+  if (act === 'welcome-open') { openWelcome(); return; }
+  if (act === 'welcome-close') { closeWelcome(); return; }
+  if (t.dataset.localSetup || t.dataset.build) {
+    const sc = t.dataset.build ? createCustomBuild(t.dataset.build, state.sc.econ) : createSetupScenario(t.dataset.localSetup, state.sc.econ);
+    if (!sc) return;
+    pause();
+    sc.groups = sc.groups.map(g => ({ ...g, id: newGroupId() }));
+    state.sc = sc; state.mission = null; state.tab = 'sandbox'; state.setup = 'hardware'; state.setupExpanded = !!t.dataset.build;
+    commit();
+    window.scrollTo({ top: 0 });
+    $('tab-sandbox').focus({ preventScroll: true });
+    showToast(t.dataset.build ? 'Custom build loaded. Enter your actual hardware specifications.' : 'Example loaded. Make it yours in the sandbox.');
+    return;
+  }
+  if (t.dataset.setupFilter) {
+    if (!['all', 'macos', 'linux'].includes(t.dataset.setupFilter)) return;
+    state.setupFilter = t.dataset.setupFilter; render();
+    document.querySelector(`[data-setup-filter="${state.setupFilter}"]`)?.focus({ preventScroll: true });
+    return;
+  }
+  if (act === 'browse-builds') { $('buildTitle').focus(); return; }
+  if (act === 'toggle-setup' || act === 'open-setup') {
+    state.setupExpanded = act === 'open-setup' || !state.setupExpanded;
+    renderLoadout($('loadout'), state);
+    document.querySelector('[data-act="toggle-setup"]')?.focus({ preventScroll: true });
+    if (act === 'open-setup') $('loadout').scrollIntoView({ block: 'start' });
+    return;
+  }
+  if (t.dataset.setup) {
+    state.setup = t.dataset.setup; renderLoadout($('loadout'), state);
+    document.querySelector(`.setup-nav [data-setup="${state.setup}"]`)?.focus({ preventScroll: true });
+    return;
+  }
+  if (t.dataset.sceneView) { setSceneView(t.dataset.sceneView); return; }
+  if (t.dataset.camera) { moveCamera(t.dataset.camera); return; }
+  if (t.dataset.inspectGroup !== undefined) {
+    state.setup = 'people'; state.setupExpanded = true; renderLoadout($('loadout'), state);
+    const input = document.querySelector(`[data-g="${t.dataset.inspectGroup}"][data-f="count"]`);
+    input?.focus({ preventScroll: true }); input?.scrollIntoView({ block: 'nearest' });
+    return;
+  }
+  if (t.dataset.crowd) {
+    const preset = t.dataset.crowd;
+    state.mission = null; state.setup = 'people'; loadCrowd(CROWDS[preset].groups); commit();
+    document.querySelector(`#scenarioBar [data-crowd="${preset}"]`)?.focus({ preventScroll: true }); return;
+  }
   if (act === 'add-group') {
     const last = state.sc.groups[state.sc.groups.length - 1];
     state.sc.groups.push({ id: newGroupId(), persona: 'chat', count: 5, client: 'phone', link: last?.link || 'wifi', protocol: '', distanceKm: last?.distanceKm ?? 0.01 });
@@ -202,6 +263,7 @@ function onClick(ev) {
   if (t.dataset.sort) { state.compare.sort = t.dataset.sort; renderCompareView(); return; }
   if (t.dataset.box && t.closest('#compare')) {
     state.sc.box.id = t.dataset.box;
+    state.sc.box.enclosure = '';
     if (t.dataset.runtime && t.dataset.runtime !== state.sc.runtime.id) state.sc.runtime = { id: t.dataset.runtime, overrides: {} };
     state.tab = 'sandbox';
     commit(); window.scrollTo({ top: 0 }); return;
@@ -209,7 +271,7 @@ function onClick(ev) {
   switch (t.id) {
     case 'playBtn': state.running ? pause() : play(); renderTransport(); break;
     case 'skipBtn': skip(1200); break;
-    case 'restartBtn': rebuild({ settle: false }); break;
+    case 'restartBtn': rebuild({ settle: false }); renderTransport(); break;
     case 'redlineBtn': findRedline(); break;
     case 'compareBtn': runCompare(); break;
     case 'scoreMissionBtn': scoreCurrentMission(); break;
@@ -217,11 +279,14 @@ function onClick(ev) {
     case 'missionNextBtn': closeModal('missionModal'); state.tab = 'missions'; render(); break;
     case 'shareBtn': copyLink(); break;
     case 'resetAllBtn':
-      pause(); state.sc = defaultScenario(); state.mission = null; commit(); renderTransport(); showToast('Back to the default scenario.');
+      pause(); state.sc = defaultScenario(); state.setup = 'hardware'; state.setupExpanded = false; state.mission = null; commit(); renderTransport(); showToast('Back to the default scenario.');
       break;
     default:
       if (t.dataset.speed) { state.speed = +t.dataset.speed; save(state); renderTransport(); }
-      else if (t.dataset.tab) switchTab(t.dataset.tab);
+      else if (t.dataset.tab) {
+        switchTab(t.dataset.tab);
+        if (!t.classList.contains('tab')) $(`tab-${t.dataset.tab}`)?.focus({ preventScroll: true });
+      }
   }
 }
 
@@ -271,6 +336,13 @@ export function closeModal(id) {
   back?.focus?.();
 }
 function onKeydown(ev) {
+  const welcome = $('welcomeDialog');
+  if (welcome.open && ev.key === 'Tab') {
+    const list = focusables(welcome);
+    if (ev.shiftKey && document.activeElement === list[0]) { ev.preventDefault(); list.at(-1)?.focus(); }
+    else if (!ev.shiftKey && document.activeElement === list.at(-1)) { ev.preventDefault(); list[0]?.focus(); }
+    return;
+  }
   const m = document.querySelector('.modal:not([hidden])');
   if (!m) return;
   if (ev.key === 'Escape') { ev.preventDefault(); closeModal(m.id); return; }
@@ -282,6 +354,15 @@ function onKeydown(ev) {
 }
 
 export function bindEvents() {
+  const welcome = $('welcomeDialog');
+  welcome.addEventListener('close', restoreWelcomeFocus);
+  let welcomeBackdrop = false;
+  const outsideWelcome = ev => {
+    const rect = welcome.getBoundingClientRect();
+    return ev.target === welcome && (ev.clientX < rect.left || ev.clientX > rect.right || ev.clientY < rect.top || ev.clientY > rect.bottom);
+  };
+  welcome.addEventListener('pointerdown', ev => { welcomeBackdrop = outsideWelcome(ev); });
+  welcome.addEventListener('click', ev => { if (welcomeBackdrop && outsideWelcome(ev)) closeWelcome(); welcomeBackdrop = false; });
   $('loadout').addEventListener('change', onLoadoutChange);
   document.addEventListener('click', onClick);
   document.addEventListener('click', (ev) => {
@@ -290,8 +371,14 @@ export function bindEvents() {
   });
   document.addEventListener('keydown', onKeydown);
   document.querySelector('.tabs').addEventListener('keydown', onTabKeys);
+  window.addEventListener('hashchange', () => {
+    if (!loadShared(state)) return;
+    pause(); state.tab = 'sandbox'; state.setup = 'hardware'; state.setupExpanded = false;
+    history.replaceState(null, '', location.pathname + location.search);
+    commit();
+    $('tab-sandbox').focus({ preventScroll: true });
+  });
   window.addEventListener('resize', debounce(() => { resetFloorLayout(); redraw(); }, 120));
   document.addEventListener('visibilitychange', () => { if (document.hidden && state.running) { pause(); renderTransport(); } });
   renderTabs();
 }
-

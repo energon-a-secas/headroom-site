@@ -38,7 +38,10 @@ Headroom tells you whether a local AI box will serve your people before you pay 
 
 ## Features
 
-- **Sandbox** -- a live floor of users around the box, colored by what they are doing, with throughput, queue, answers-on-target and power charts
+- **Sandbox** -- an interactive 3D view of the hardware and connected devices, with live request activity, a full-crowd Activity view, and throughput, queue, answers-on-target and power charts
+- **Device artwork** -- local product and client thumbnails rendered from the same original 3D models; camera controls support mouse, touch and keyboard, with an automatic fallback when WebGL is unavailable
+- **Local setups** -- eight editable macOS and Linux examples pairing hardware, an AI model, server settings and a workload; custom laptop, compact PC, tower and rack illustrations with editable specifications
+- **Quick start** -- a first-visit welcome that can be reopened from the header
 - **Find the redline** -- doubles the crowd until answers fail, then bisects; when the network gives out first, it also reports what the box alone would hold
 - **Compare boxes** -- the same crowd on every box in the catalog, with redlines, cost per user and wall power
 - **Missions** -- nine scenarios with a budget and a par price; three stars for serving everyone on the cheapest hardware that works
@@ -70,6 +73,27 @@ The engine is plain ES modules with no DOM, so it also runs headless in Node:
 node --input-type=module -e "import('./js/engine/sim.js').then(m => console.log(m.runScenario({box:{id:'dgx-spark',count:1},model:{id:'gpt-oss-120b',quant:'mxfp4',kv:'f16'},runtime:{id:'vllm'},groups:[{persona:'reader',count:50,client:'kindle',link:'wifi',distanceKm:0.015}]}).verdict))"
 ```
 
+The optional 3D view uses vendored Three.js and illustrative procedural models,
+not exact manufacturer geometry. It shows up to 72 representative devices for
+large crowds while the engine and live totals still include every user. The
+Activity view shows every user individually.
+
+Run `make test` for engine regressions. With the dev server running and
+Playwright available in your developer environment, `node tests/ui.mjs` checks
+the setup workflow, 3D controls and fallback, large crowds, and responsive layout.
+`node scripts/render-device-art.mjs` regenerates the committed device thumbnails.
+The deployed site still needs no build step or package install.
+
+For headless setup calculations, run `node scripts/calculate-setups.mjs --help`.
+It can export every example, sweep user counts and find redlines as JSON using
+the existing simulator. No actual AI models or external APIs are called.
+
+The [research handoff](docs/local-setup-research-handoff.md) scopes a separate
+pass for verified product specifications, real benchmarks, installation guides
+and a possible main-model/local-worker tutorial. Custom enclosure starter
+figures are explicitly named baselines, not measured profiles for the pictured
+machine. Changing enclosure appearance does not change simulated performance.
+
 ---
 
 ## Architecture
@@ -78,9 +102,11 @@ node --input-type=module -e "import('./js/engine/sim.js').then(m => console.log(
 
 ```
 headroom-site/
-├── index.html              # App shell: sandbox, missions, compare, method prose
+├── index.html              # App shell: sandbox, local setups, missions, compare, method
 ├── css/
 │   ├── style.css           # Fleet template plus the app layout and chart tokens
+│   ├── workspace.css       # Simulation workspace, device previews, responsive layout
+│   ├── setups.css          # Local setup examples and custom enclosure gallery
 │   └── viz.css             # Viz Kit (vendored)
 ├── js/
 │   ├── app.js              # Entry point
@@ -101,7 +127,11 @@ headroom-site/
 │   │   ├── heap.js         # Event queue
 │   │   └── rng.js          # Seeded randomness
 │   ├── data/               # Hardware, models, runtimes, crowd, missions, calibration
-│   └── ui/                 # Loadout, floor canvas, scoreboard, charts, compare, missions, method
+│   ├── vendor/three/       # Optional Three.js renderer and MIT license
+│   └── ui/                 # Loadout, 3D models/scene, activity canvas, results, charts
+├── assets/devices/         # Committed thumbnails of the procedural device models
+├── scripts/                # Developer utility for regenerating device artwork
+├── DESIGN.md               # Workspace design conventions
 ├── docs/
 │   ├── architecture.mmd    # Diagram source
 │   └── research.md         # Sourced specs and benchmarks behind the catalog

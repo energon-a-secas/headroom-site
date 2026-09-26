@@ -9,8 +9,10 @@
 
 import { U } from '../engine/sim.js';
 import { escHtml } from '../utils.js';
+import { deviceImage, clientLabel } from './device-art.js';
 
 const COLORS = {};
+const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
 function readColors() {
   const cs = getComputedStyle(document.documentElement);
   const v = (n, f) => (cs.getPropertyValue(n).trim() || f);
@@ -98,18 +100,13 @@ export function drawFloor(canvas, sim, legendEl, groupsEl) {
   const key = `${w}x${h}:${sim.users.length}:${sim.groups.length}`;
   if (!layout || layout.key !== key || layout.sim !== sim) {
     layout = computeLayout(sim, w, h);
-    // Group names live in HTML above the canvas; the canvas carries numbers only,
-    // so labels never sit on top of users.
-    if (groupsEl) {
-      groupsEl.innerHTML = sim.groups.map((g, i) => `<span><span class="num">${i + 1}</span>${escHtml(`${g.users.length} x ${g.persona.name} \u00b7 ${g.client.name} \u00b7 ${g.link.def.name}`)}${g.unserved ? ` <span class="flag">(${g.unserved} cannot connect)</span>` : ''}</span>`).join('');
-    }
   }
   const L = layout;
   const ctx = canvas.getContext('2d');
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
   const snap = sim.snapshot();
-  const phase = (performance.now() / 900) % 1;
+  const phase = reducedMotion.matches ? 0.5 : (sim.t * 0.07) % 1;
 
   // Links: one line per group from the box to the sector, styled by link type.
   ctx.lineWidth = 1;
@@ -122,13 +119,11 @@ export function drawFloor(canvas, sim, legendEl, groupsEl) {
   ctx.setLineDash([]);
 
   // Users.
-  const counts = new Array(STATES.length).fill(0);
   const users = sim.users;
   for (let i = 0; i < users.length; i++) {
     const s = snap.states[i];
     const x = L.pos[i * 2], y = L.pos[i * 2 + 1];
     const si = STATES.findIndex((st) => st[2](s));
-    counts[si]++;
     const key = STATES[si][0];
     if (key === 'off') {
       ctx.strokeStyle = COLORS.off; ctx.lineWidth = 1.2;
@@ -156,9 +151,26 @@ export function drawFloor(canvas, sim, legendEl, groupsEl) {
 
   drawBox(ctx, L, sim, snap);
   drawLabels(ctx, L, sim);
+  renderFloorSummary(sim, legendEl, groupsEl, snap);
+}
+
+// Both views share exact counts and HTML device labels. Avoid replacing focused
+// group buttons or image nodes on every animation frame.
+export function renderFloorSummary(sim, legendEl, groupsEl, snap = sim.snapshot()) {
+  if (!COLORS.net) readColors();
+  if (groupsEl && groupsEl._sim !== sim) {
+    groupsEl._sim = sim;
+    groupsEl.innerHTML = sim.groups.map((g, i) => `<button type="button" class="connected-group" data-inspect-group="${i}" aria-label="Edit group ${i + 1}: ${escHtml(g.client.name)}, ${g.users.length} users">
+      <img src="${deviceImage(g.client.id, true)}" alt="" width="64" height="48">
+      <span><strong>${g.users.length} ${escHtml(clientLabel(g.client.id, g.users.length))}</strong><small><span class="num">${i + 1}</span>${escHtml(g.link.def.name)}</small>${g.unserved ? `<small class="flag">${g.unserved} cannot connect</small>` : ''}</span>
+      <span class="connected-group__edit" aria-hidden="true">↗</span></button>`).join('');
+  }
   if (legendEl) {
-    legendEl.innerHTML = STATES.map((st, i) => (st[0] === 'off' && !counts[i] ? '' :
-      `<span class="lg"><i class="${st[0] === 'off' ? 'ring' : ''}" style="background:${COLORS[st[0]]}"></i>${escHtml(st[1])} <b>${counts[i]}</b></span>`)).join('');
+    const counts = new Array(STATES.length).fill(0);
+    for (const s of snap.states) { const i = STATES.findIndex(st => st[2](s)); if (i >= 0) counts[i]++; }
+    const content = STATES.map((st, i) => st[0] === 'off' && !counts[i] ? '' :
+      `<span class="lg"><i class="${st[0] === 'off' ? 'ring' : ''}" style="background:${COLORS[st[0]]}"></i>${escHtml(st[1])} <b>${counts[i]}</b></span>`).join('');
+    if (legendEl._content !== content) { legendEl.innerHTML = content; legendEl._content = content; }
   }
 }
 

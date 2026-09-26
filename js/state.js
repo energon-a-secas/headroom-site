@@ -7,6 +7,7 @@ import { DEFAULT_ECON } from './engine/report.js';
 import { BOXES } from './data/hardware.js';
 import { MODELS } from './data/models.js';
 import { RUNTIMES } from './data/runtimes.js';
+import { resolveEnclosure } from './data/enclosures.js';
 
 const STORAGE_KEY = 'headroom:v1';
 const PROGRESS_KEY = 'headroom:missions';
@@ -45,6 +46,9 @@ export const CROWDS = {
 
 export const state = {
   tab: 'sandbox',
+  setup: 'hardware',   // UI only; shared links carry the scenario, not open panels.
+  setupExpanded: false,
+  setupFilter: 'all',
   sc: defaultScenario(),
   speed: 20,            // simulated seconds per real second
   running: false,
@@ -74,6 +78,7 @@ function sanitize(raw) {
   sc.box.count = Math.max(1, Math.min(8, sc.box.count | 0 || 1));
   // A saved scenario can name a box, model or server that has since left the catalog.
   if (sc.box.id !== 'custom' && !BOXES.some((b) => b.id === sc.box.id)) sc.box = { ...d.box };
+  sc.box.enclosure = resolveEnclosure(sc.box.id, sc.box.enclosure);
   if (!MODELS.some((m) => m.id === sc.model.id && !m.hidden)) sc.model = { ...d.model };
   if (!RUNTIMES.some((r) => r.id === sc.runtime.id)) sc.runtime = { ...d.runtime };
   return sc;
@@ -89,8 +94,14 @@ export function loadSaved(s) {
     }
     s.progress = JSON.parse(localStorage.getItem(PROGRESS_KEY) || '{}') || {};
   } catch { /* private mode or corrupted: defaults stand */ }
+  loadShared(s);
+}
+
+export function loadShared(s) {
   const fromHash = readHash();
-  if (fromHash) { s.sc = sanitize(fromHash); s.mission = null; }
+  if (!fromHash) return false;
+  s.sc = sanitize(fromHash); s.mission = null;
+  return true;
 }
 
 export function save(s) {

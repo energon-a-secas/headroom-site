@@ -3,16 +3,17 @@
 
 import { state } from './state.js';
 import { $, escHtml as e, fmtClock, fmtPct, fmtInt } from './utils.js';
-import { renderLoadout } from './ui/loadout.js';
+import { renderLoadout, renderScenarios } from './ui/loadout.js';
 import { renderScore } from './ui/score.js';
 import { renderCharts, renderBlame } from './ui/charts.js';
-import { drawFloor } from './ui/floor.js';
+import { drawScene } from './ui/scene.js';
 import { renderMissions, renderMissionBar } from './ui/missions.js';
 import { renderCompare, renderCompareLead } from './ui/compare.js';
 import { renderMethod } from './ui/method.js';
+import { renderLocalSetups } from './ui/setups.js';
 import { LABELS } from './engine/report.js';
 
-const TABS = ['sandbox', 'missions', 'compare', 'method'];
+const TABS = ['sandbox', 'setups', 'missions', 'compare', 'method'];
 
 export function renderTabs() {
   for (const t of TABS) {
@@ -26,17 +27,18 @@ export function renderTabs() {
 
 export function renderTransport() {
   const play = $('playBtn');
-  play.textContent = state.running ? 'Pause' : 'Run';
+  play.innerHTML = state.running ? '<span aria-hidden="true">Ⅱ</span> Pause' : '<span aria-hidden="true">▶</span> Run';
   play.setAttribute('aria-pressed', String(state.running));
   $('speedSeg').querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(+b.dataset.speed === state.speed)));
   const rl = $('redlineBtn');
   rl.disabled = state.redline.busy;
   rl.textContent = state.redline.busy ? 'Searching...' : 'Find the redline';
+  drawScene(state, true);
 }
 
 export function renderFrame() {
   if (state.tab !== 'sandbox' || !state.sim) return;
-  drawFloor($('floor'), state.sim, $('floorLegend'), $('floorGroups'));
+  drawScene(state);
   $('clock').textContent = fmtClock(state.sim.t);
 }
 
@@ -89,11 +91,14 @@ export function render() {
   renderTabs();
   if (state.tab === 'sandbox') {
     renderLoadout($('loadout'), state);
+    renderScenarios($('scenarioBar'), state);
     renderMissionBar($('missionBar'), state);
     renderTransport();
     renderRedline();
     renderReport();
     renderFrame();
+  } else if (state.tab === 'setups') {
+    renderLocalSetups($('localSetups'), state);
   } else if (state.tab === 'missions') {
     renderMissions($('missions'), state);
   } else if (state.tab === 'compare') {
