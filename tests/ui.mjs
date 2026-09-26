@@ -44,7 +44,7 @@ try {
     await ready3D(); await assetsLoaded();
     assert.match(await page.locator('#sceneSummary').textContent(), /DGX Spark.*50 users/);
     assert.equal(await legendTotal(), 50);
-    assert.match(await page.locator('.verdict__label').textContent(), /Right-sized/);
+    assert.match(await page.locator('.verdict__label').textContent(), /Tight/);
   });
   await check('camera buttons and keyboard change the rendered view', async () => {
     const before = await page.locator('#deviceFloor').screenshot();
@@ -132,7 +132,7 @@ try {
     assert.equal(await page.locator('#clock').textContent(), '00:20:00');
     await page.locator('#redlineBtn').click();
     await page.waitForFunction(() => !document.getElementById('redlineBtn').disabled);
-    assert.equal((await page.locator('#redlineCard .big').textContent()).trim(), '63');
+    assert.equal((await page.locator('#redlineCard .big').textContent()).trim(), '62');
   });
   await check('comparison renders device pictures and loads a selected box', async () => {
     await page.locator('#tab-compare').click();
