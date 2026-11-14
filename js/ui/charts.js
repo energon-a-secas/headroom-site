@@ -39,8 +39,9 @@ export function renderCharts(el, series) {
     const last = pts.length ? pts[pts.length - 1].y : null;
     const scale = last == null ? '' : `${Math.round(last)}${c.unit === '%' ? '%' : ` ${c.unit}`} now`;
     const max = c.max ?? niceCeil(Math.max(1, ...pts.map((p) => p.y)) * 1.05);
+    // marks: false keeps the kit's hover layer off: bindHover below draws this chart's crosshair and tooltip.
     box.querySelector('.chart__svg').innerHTML = pts.length > 1
-      ? viz.line([{ name: c.title, color: 'var(--accent)', values: pts }], { title: c.title, scale, width: W, height: H, padL: PAD_L, padR: PAD_R, min: c.min, max, area: true, uid: `hr-${c.id}` })
+      ? viz.line([{ name: c.title, color: 'var(--accent)', values: pts }], { title: c.title, scale, width: W, height: H, padL: PAD_L, padR: PAD_R, min: c.min, max, area: true, uid: `hr-${c.id}`, marks: false })
       : viz.line([], { title: c.title, width: W, height: H }).replace('No data', 'Press Run to start the clock');
     box._max = max;
   }
