@@ -124,13 +124,13 @@ function groupsBlock(r) {
     const fails = Object.entries(g.fail).map(([k, v]) => `${v} ${k}`).join(', ');
     return `<tr>
       <td>${e(g.count)} x ${e(g.persona)}<br><span class="muted">${e(g.client)} · ${e(g.link)}</span></td>
-      <td class="r">${g.passPct == null ? 'none' : fmtPct(g.passPct)}</td>
-      <td class="r">${g.ttft.p95 == null ? 'none' : fmtSec(g.ttft.p95)}</td>
-      <td class="r">${g.e2e.p95 == null ? 'none' : fmtSec(g.e2e.p95)}</td>
+      <td class="neo-table__num">${g.passPct == null ? 'none' : fmtPct(g.passPct)}</td>
+      <td class="neo-table__num">${g.ttft.p95 == null ? 'none' : fmtSec(g.ttft.p95)}</td>
+      <td class="neo-table__num">${g.e2e.p95 == null ? 'none' : fmtSec(g.e2e.p95)}</td>
     </tr>${fails || g.late || g.truncated ? `<tr><td colspan="4" class="muted" style="border-bottom-color:var(--border)">${e([fails, g.late ? `${g.late} still waiting past the target` : '', g.truncated ? `${g.truncated} conversations trimmed` : ''].filter(Boolean).join('; '))}</td></tr>` : ''}`;
   }).join('');
   return `<section class="panel" aria-label="Groups">
     <h3 class="panel__title">By group</h3>
-    <div class="table-wrap"><table class="tbl"><thead><tr><th>Group</th><th class="r">On target</th><th class="r">First text p95</th><th class="r">Whole p95</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="neo-table-wrap" role="region" aria-label="By group"><table class="neo-table"><thead><tr><th scope="col">Group</th><th scope="col" class="neo-table__num">On target</th><th scope="col" class="neo-table__num">First text p95</th><th scope="col" class="neo-table__num">Whole p95</th></tr></thead><tbody>${rows}</tbody></table></div>
   </section>`;
 }

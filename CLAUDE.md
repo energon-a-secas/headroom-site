@@ -51,6 +51,8 @@ Then open http://localhost:8894. It must be served over HTTP: the app is ES modu
 
 Vendored from `packages/neorgon-ui/`, never edit in place; run the sync script instead: `js/neorgon-header.js`, `js/neorgon-footer.js`.
 
+Every table is the Parts Kit's `.neo-table` in a `.neo-table-wrap`, vendored as `css/neorgon-parts.css` by `packages/neorgon-ui/sync-parts.sh`. The site's look is the `--neo-table-*` properties on `main` in `css/style.css`; the picked compare row is `tr[aria-current="true"]`, number cells are `.neo-table__num`. The score table's 10px type is a site rule (`workspace.css`) because the kit floors text at 12px. Prove any change with `node packages/neorgon-ui/tests/parts-parity.cjs headroom-site`.
+
 ## Data
 
 - `localStorage['headroom:missions']`

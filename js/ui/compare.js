@@ -31,7 +31,7 @@ export function renderCompare(el, state) {
   }
   const sorted = [...rows].sort(SORTS[sort] || SORTS.redline);
   const maxRed = Math.max(1, ...rows.map((r) => r.redline || 0));
-  const th = (key, label, cls = '') => `<th class="${cls}"><button type="button" class="chip" data-sort="${key}" aria-pressed="${sort === key}" style="${sort === key ? 'border-color:var(--accent);color:var(--text-primary)' : ''}">${e(label)}</button></th>`;
+  const th = (key, label, cls = '') => `<th scope="col" class="${cls}"><button type="button" class="chip" data-sort="${key}" aria-pressed="${sort === key}" style="${sort === key ? 'border-color:var(--accent);color:var(--text-primary)' : ''}">${e(label)}</button></th>`;
   const body = sorted.map((row) => {
     const b = boxById(row.boxId, state.sc.box.custom);
     const r = row.report;
@@ -39,22 +39,22 @@ export function renderCompare(el, state) {
     const tone = TONE[r.verdict?.id] || 'idle';
     const pill = `<span class="pill pill--${tone === 'idle' ? 'warn' : tone}">${ICONS[tone === 'idle' ? 'warn' : tone]}${e(r.verdict?.label || '')}</span>`;
     if (!r.ok) {
-      return `<tr data-box="${e(row.boxId)}" class="${current ? 'is-current' : ''}"><td><div class="compare-device"><img src="${deviceImage(b.id)}" alt="" width="72" height="56"><span><b>${e(b.short)}</b><br><span class="muted">${fmtUsd(b.priceUsd * state.sc.box.count)}</span></span></div></td>
+      return `<tr data-box="${e(row.boxId)}"${current ? ' aria-current="true"' : ''}><td><div class="compare-device"><img src="${deviceImage(b.id)}" alt="" width="72" height="56"><span><b>${e(b.short)}</b><br><span class="muted">${fmtUsd(b.priceUsd * state.sc.box.count)}</span></span></div></td>
         <td colspan="${redline ? 6 : 5}" style="white-space:normal"><span class="pill pill--bad">${ICONS.bad}Does not fit</span> <span class="muted">${e(r.fit?.reason || '')}</span></td></tr>`;
     }
     const worstE2e = Math.max(...r.groups.map((g) => g.e2e.p95 ?? 0));
-    return `<tr data-box="${e(row.boxId)}" data-runtime="${e(row.runtime)}" class="${current ? 'is-current' : ''}" title="Load ${e(b.short)} into the Sandbox">
+    return `<tr data-box="${e(row.boxId)}" data-runtime="${e(row.runtime)}"${current ? ' aria-current="true"' : ''} title="Load ${e(b.short)} into the Sandbox">
       <td><div class="compare-device"><img src="${deviceImage(b.id)}" alt="" width="72" height="56"><span><button type="button" class="row-load" data-box="${e(row.boxId)}" data-runtime="${e(row.runtime)}" aria-label="Load ${e(b.short)} into the Sandbox">${e(b.short)}</button>${b.status !== 'shipping' ? ` <span class="muted">(${e(b.status)})</span>` : ''}<br><span class="muted">${fmtUsd(b.priceUsd * state.sc.box.count)} · ${e(runtimeById(row.runtime).name)}</span></span></div></td>
       <td>${pill}</td>
       <td><div class="inbar"><span><i style="width:${((r.passRate || 0) * 100).toFixed(1)}%"></i></span><b>${fmtPct(r.passRate)}</b></div></td>
-      <td class="r hide-sm">${worstE2e ? fmtSec(worstE2e) : 'none'}</td>
+      <td class="neo-table__num hide-sm">${worstE2e ? fmtSec(worstE2e) : 'none'}</td>
       <td class="hide-sm"><div class="inbar"><span><i style="width:${(r.util.busy * 100).toFixed(1)}%;background:var(--c-3)"></i></span><b>${fmtPct(r.util.busy)}</b></div></td>
       ${redline ? `<td><div class="inbar"><span><i style="width:${(((row.redline || 0) / maxRed) * 100).toFixed(1)}%;background:var(--accent)"></i></span><b>${row.redline == null ? '...' : fmtInt(row.redline)}</b></div>${row.boxUsers ? `<span class="muted">box alone ${fmtInt(row.boxUsers)}, the network caps it</span>` : row.redlineWhy ? `<span class="muted">${e(LABELS[row.redlineWhy] || row.redlineWhy)}</span>` : ''}</td>` : ''}
-      <td class="r">${r.econ?.perUserMonth == null ? 'none' : fmtUsd(r.econ.perUserMonth, 2)}<br><span class="muted">${Math.round(r.util.avgW)} W</span></td>
+      <td class="neo-table__num">${r.econ?.perUserMonth == null ? 'none' : fmtUsd(r.econ.perUserMonth, 2)}<br><span class="muted">${Math.round(r.util.avgW)} W</span></td>
     </tr>`;
   }).join('');
-  el.innerHTML = `<div class="table-wrap"><table class="tbl">
-    <thead><tr>${th('price', 'Box, by price')}<th>Verdict</th>${th('pass', 'On target')}<th class="r hide-sm">Slowest p95</th><th class="hide-sm">Busy</th>${redline ? th('redline', 'Redline users') : ''}${th('perUser', '$ per user / month', 'r')}</tr></thead>
+  el.innerHTML = `<div class="neo-table-wrap" role="region" aria-label="Every box with this crowd"><table class="neo-table">
+    <thead><tr>${th('price', 'Box, by price')}<th scope="col">Verdict</th>${th('pass', 'On target')}<th scope="col" class="neo-table__num hide-sm">Slowest p95</th><th scope="col" class="hide-sm">Busy</th>${redline ? th('redline', 'Redline users') : ''}${th('perUser', '$ per user / month', 'neo-table__num')}</tr></thead>
     <tbody>${body}</tbody></table></div>
     <p class="note">${busy ? 'Still running: rows appear as each box finishes. ' : ''}Click a row to load that box into the Sandbox. Redline is the most users of this crowd's mix that still get 95% of answers on target.</p>`;
 }

@@ -1,0 +1,404 @@
+/* ══════════════════════════════════════════════════════════════
+ * @neorgon/ui, Parts Kit v1
+ * Five shared parts: status pill (.neo-pill), chip (.neo-chip), crumb
+ * (.neo-crumb), section head (.neo-section-head) and data table (.neo-table).
+ *
+ * Canonical here; vendored as <site>/css/neorgon-parts.css by
+ * packages/neorgon-ui/sync-parts.sh. Never edit a vendored copy.
+ *
+ * The contract, made checkable by tests/parts.test.mjs:
+ *   - The kit declares no custom property. It only reads them, as
+ *     var(--neo-<part>-<prop>, <base.css token>, <literal>), so a site keeps
+ *     its look by setting properties on the part or any ancestor, in its own
+ *     stylesheet, and where this file is linked does not change them.
+ *   - Every var() has a fallback, and the last fallback is a literal.
+ *   - Every font-size is max(12px, ...): no kit text under 12px.
+ *   - No transition runs by default: durations read a property whose default
+ *     is 0s, so motion is opt-in per site.
+ *   - Specificity ceiling (0,3,0): no selector here is more specific. A site
+ *     rule that must beat the kit carries one more class or an id. The README
+ *     lists the selectors to beat.
+ *   - No print rules: printing is the site's call.
+ *
+ * Defaults are the first consumer's look, measured on 2026-11-17: the pill,
+ * chip and crumb are apps-site's; the section head and table are Releve's.
+ * Every other consumer sets properties (parts/README.md lists each one with
+ * its default).
+ * ════════════════════════════════════════════════════════════ */
+
+/* ── Status pill ──────────────────────────────────────────────
+ * A word with an optional glyph. Not a link, not focusable. State is the
+ * data-state attribute; each state reads its own properties, so a site that
+ * sets the base --neo-pill-ink never erases a state colour. */
+.neo-pill {
+  display: var(--neo-pill-display, inline-flex);
+  flex: var(--neo-pill-flex, 0 1 auto);
+  align-items: var(--neo-pill-align, center);
+  gap: var(--neo-pill-gap, 6px);
+  min-height: var(--neo-pill-h, 24px);
+  padding: var(--neo-pill-pad, 0 10px);
+  border-radius: var(--neo-pill-radius, 999px);
+  border-width: var(--neo-pill-border-w, 0);
+  border-style: var(--neo-pill-border-style, none);
+  border-color: var(--neo-pill-border, currentColor);
+  color: var(--neo-pill-ink, var(--text-secondary, #cacaca));
+  background: var(--neo-pill-bg, rgb(255 255 255 / 8%));
+  font-size: max(12px, var(--neo-pill-size, var(--text-xs, .75rem)));
+  font-weight: var(--neo-pill-weight, 600);
+  letter-spacing: var(--neo-pill-tracking, inherit);
+  text-transform: var(--neo-pill-case, inherit);
+  line-height: var(--neo-pill-leading, inherit);
+  white-space: var(--neo-pill-space, nowrap);
+}
+.neo-pill__glyph {
+  flex: none;
+  width: var(--neo-pill-glyph, 8px);
+  height: var(--neo-pill-glyph, 8px);
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+}
+.neo-pill[data-state="test"] {
+  color: var(--neo-pill-test-ink, var(--text-secondary, #cacaca));
+  background: var(--neo-pill-test-bg, rgb(255 255 255 / 8%));
+  border-color: var(--neo-pill-test-border, var(--neo-pill-border, currentColor));
+}
+.neo-pill[data-state="soon"] {
+  color: var(--neo-pill-soon-ink, var(--text-secondary, #cacaca));
+  background: var(--neo-pill-soon-bg, color-mix(in srgb, var(--neo-pill-hue, var(--accent-bright, #e08fdf)) 14%, transparent));
+  border-color: var(--neo-pill-soon-border, var(--neo-pill-border, currentColor));
+}
+.neo-pill[data-state="new"] {
+  color: var(--neo-pill-new-ink, var(--accent-bright, #e08fdf));
+  background: var(--neo-pill-new-bg, color-mix(in srgb, var(--accent-bright, #e08fdf) 14%, transparent));
+  border-color: var(--neo-pill-new-border, var(--neo-pill-border, currentColor));
+}
+.neo-pill[data-state="archived"] {
+  color: var(--neo-pill-archived-ink, var(--text-muted, rgb(255 255 255 / 55%)));
+  background: var(--neo-pill-archived-bg, transparent);
+  border-color: var(--neo-pill-archived-border, var(--neo-pill-border, currentColor));
+}
+.neo-pill[data-state="ok"] {
+  color: var(--neo-pill-ok-ink, var(--ok, #34d399));
+  background: var(--neo-pill-ok-bg, color-mix(in srgb, var(--ok, #34d399) 12%, transparent));
+  border-color: var(--neo-pill-ok-border, var(--neo-pill-border, currentColor));
+}
+.neo-pill[data-state="warn"] {
+  color: var(--neo-pill-warn-ink, var(--warn, #f59e0b));
+  background: var(--neo-pill-warn-bg, color-mix(in srgb, var(--warn, #f59e0b) 12%, transparent));
+  border-color: var(--neo-pill-warn-border, var(--neo-pill-border, currentColor));
+}
+.neo-pill[data-state="danger"] {
+  color: var(--neo-pill-danger-ink, var(--danger, #f87171));
+  background: var(--neo-pill-danger-bg, color-mix(in srgb, var(--danger, #f87171) 12%, transparent));
+  border-color: var(--neo-pill-danger-border, var(--neo-pill-border, currentColor));
+}
+.neo-pill[data-state="info"] {
+  color: var(--neo-pill-info-ink, var(--info, #60a5fa));
+  background: var(--neo-pill-info-bg, color-mix(in srgb, var(--info, #60a5fa) 12%, transparent));
+  border-color: var(--neo-pill-info-border, var(--neo-pill-border, currentColor));
+}
+/* Glyphs: a ring by default (test, soon), a filled dot for new, a square
+   outline for archived. */
+.neo-pill[data-state="new"] .neo-pill__glyph { background: currentColor; }
+.neo-pill[data-state="archived"] .neo-pill__glyph { border-radius: 1px; }
+
+/* ── Chip ─────────────────────────────────────────────────────
+ * A link to a category, a toggle (<button aria-pressed>), a static label
+ * (--facet) or a holder for a clear button (--static). The default look is
+ * apps-site's category chip: a tint of --neo-chip-accent. */
+.neo-chip {
+  position: var(--neo-chip-position, relative);
+  display: var(--neo-chip-display, inline-flex);
+  align-items: var(--neo-chip-align, center);
+  gap: var(--neo-chip-gap, 6px);
+  min-height: var(--neo-chip-h, 32px);
+  padding: var(--neo-chip-pad, 0 10px 0 12px);
+  border-radius: var(--neo-chip-radius, 999px);
+  border-width: var(--neo-chip-border-w, 0);
+  border-style: var(--neo-chip-border-style, none);
+  border-color: var(--neo-chip-border, currentColor);
+  box-shadow: var(--neo-chip-shadow, none);
+  color: var(--neo-chip-ink, var(--neo-chip-accent, var(--accent-bright, #e08fdf)));
+  background: var(--neo-chip-bg, color-mix(in oklab, var(--neo-chip-accent, var(--accent-bright, #e08fdf)) 14%, transparent));
+  font: inherit;
+  font-family: var(--neo-chip-font, inherit);
+  font-size: max(12px, var(--neo-chip-size, var(--text-sm, .875rem)));
+  font-weight: var(--neo-chip-weight, 600);
+  letter-spacing: var(--neo-chip-tracking, inherit);
+  line-height: var(--neo-chip-leading, inherit);
+  white-space: var(--neo-chip-space, nowrap);
+  text-decoration: none;
+  cursor: var(--neo-chip-cursor, pointer);
+  transition-property: var(--neo-chip-transition, all);
+  transition-duration: var(--neo-chip-dur, 0s);
+  transition-timing-function: var(--neo-chip-ease, ease);
+}
+.neo-chip[hidden] { display: none; }
+.neo-chip--static { cursor: var(--neo-chip-static-cursor, default); }
+.neo-chip--facet { cursor: var(--neo-chip-facet-cursor, default); }
+.neo-chip--quiet {
+  border-style: var(--neo-chip-quiet-border-style, dashed);
+  color: var(--neo-chip-quiet-ink, var(--text-muted, rgb(255 255 255 / 55%)));
+  cursor: var(--neo-chip-quiet-cursor, help);
+}
+/* A resting "on" (a filter that is set): hover still paints over it. */
+.neo-chip--on {
+  color: var(--neo-chip-on-ink, var(--text-primary, #f9f9f9));
+  background: var(--neo-chip-on-bg, color-mix(in oklab, var(--neo-chip-accent, var(--accent-bright, #e08fdf)) 28%, transparent));
+  border-color: var(--neo-chip-on-border, var(--neo-chip-border, currentColor));
+  box-shadow: var(--neo-chip-on-shadow, none);
+}
+.neo-chip:where(:not(.neo-chip--facet, [aria-disabled="true"])):hover {
+  color: var(--neo-chip-hover-ink, var(--neo-chip-ink, var(--neo-chip-accent, var(--accent-bright, #e08fdf))));
+  background: var(--neo-chip-hover-bg, color-mix(in oklab, var(--neo-chip-accent, var(--accent-bright, #e08fdf)) 22%, transparent));
+  border-color: var(--neo-chip-hover-border, var(--neo-chip-border, currentColor));
+}
+.neo-chip--on:hover {
+  background: var(--neo-chip-on-hover-bg, var(--neo-chip-on-bg, color-mix(in oklab, var(--neo-chip-accent, var(--accent-bright, #e08fdf)) 28%, transparent)));
+}
+.neo-chip:where(:not(.neo-chip--facet, [aria-disabled="true"])):hover .neo-chip__label {
+  text-decoration: var(--neo-chip-hover-line, underline);
+  text-underline-offset: var(--neo-chip-hover-line-offset, .2em);
+}
+/* A pressed toggle or the current page: wins over hover. */
+.neo-chip:is([aria-pressed="true"], [aria-current]:not([aria-current="false"]), :has(input:checked)) {
+  color: var(--neo-chip-on-ink, var(--text-primary, #f9f9f9));
+  background: var(--neo-chip-on-bg, color-mix(in oklab, var(--neo-chip-accent, var(--accent-bright, #e08fdf)) 28%, transparent));
+  border-color: var(--neo-chip-on-border, var(--neo-chip-border, currentColor));
+  box-shadow: var(--neo-chip-on-shadow, none);
+}
+.neo-chip[aria-disabled="true"] {
+  opacity: var(--neo-chip-disabled-opacity, .5);
+  cursor: not-allowed;
+}
+.neo-chip:focus-visible {
+  outline: 2px solid var(--neo-chip-focus, var(--neo-focus, var(--neo-chip-accent, var(--accent-bright, #e08fdf))));
+  outline-offset: var(--neo-chip-focus-offset, 2px);
+}
+.neo-chip__icon {
+  flex: none;
+  width: var(--neo-chip-icon, 16px);
+  height: var(--neo-chip-icon, 16px);
+  color: var(--neo-chip-icon-ink, currentColor);
+}
+.neo-chip__go {
+  flex: none;
+  width: var(--neo-chip-go, 14px);
+  height: var(--neo-chip-go, 14px);
+}
+.neo-chip__label {
+  max-width: var(--neo-chip-label-max, none);
+  overflow: var(--neo-chip-label-overflow, visible);
+  text-overflow: var(--neo-chip-label-cut, clip);
+}
+.neo-chip__count {
+  font-size: max(12px, var(--neo-chip-count-size, var(--text-xs, .75rem)));
+  font-weight: var(--neo-chip-count-weight, 700);
+  font-variant-numeric: tabular-nums;
+  color: var(--neo-chip-count-ink, var(--text-secondary, #cacaca));
+}
+/* The clear button inside a --static chip: a real 24px target. */
+.neo-chip__x {
+  display: inline-grid;
+  place-items: center;
+  width: var(--neo-chip-x-size, 24px);
+  height: var(--neo-chip-x-size, 24px);
+  margin-right: var(--neo-chip-x-pull, -6px);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--neo-chip-x-ink, var(--text-secondary, #cacaca));
+  cursor: pointer;
+  transition-property: var(--neo-chip-x-transition, all);
+  transition-duration: var(--neo-chip-x-dur, 0s);
+  transition-timing-function: var(--neo-chip-ease, ease);
+}
+.neo-chip__x:hover {
+  background: var(--neo-chip-x-hover-bg, rgb(255 255 255 / 12%));
+  color: var(--neo-chip-x-hover-ink, var(--text-primary, #f9f9f9));
+}
+.neo-chip__x:focus-visible {
+  outline: 2px solid var(--neo-chip-focus, var(--neo-focus, var(--accent-bright, #e08fdf)));
+  outline-offset: var(--neo-chip-x-focus-offset, 2px);
+}
+.neo-chip__x svg { display: block; }
+/* A link or button chip grows its hit area to 44px on a touch screen without
+   changing its painted box. --neo-chip-hit: none turns it off. */
+@media (pointer: coarse) {
+  .neo-chip:where(a, button)::after {
+    content: var(--neo-chip-hit, "");
+    position: absolute;
+    inset: var(--neo-chip-hit-inset, -6px 0);
+  }
+}
+
+/* ── Crumb ────────────────────────────────────────────────────
+ * The way back: links, separators, the current page last. Placement (its
+ * margin) is the page's. */
+.neo-crumb {
+  display: flex;
+  flex-wrap: var(--neo-crumb-wrap, wrap);
+  align-items: center;
+  gap: var(--neo-crumb-gap, 0 10px);
+  color: var(--neo-crumb-ink, var(--text-secondary, #cacaca));
+  font-size: max(12px, var(--neo-crumb-size, .875rem));
+  line-height: var(--neo-crumb-leading, 1.4);
+}
+.neo-crumb a {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--neo-crumb-target, 44px);
+  border-radius: var(--neo-crumb-radius, 0);
+  color: var(--neo-crumb-link-ink, var(--text-secondary, #cacaca));
+  text-decoration: var(--neo-crumb-line, underline) var(--neo-crumb-line-color, rgb(255 255 255 / 28%));
+  text-underline-offset: var(--neo-crumb-line-offset, .25em);
+}
+.neo-crumb a:hover {
+  color: var(--neo-crumb-hover-ink, var(--text-primary, #f9f9f9));
+  text-decoration-line: var(--neo-crumb-hover-line, underline);
+  text-decoration-color: var(--neo-crumb-hover-line-color, currentColor);
+  text-underline-offset: var(--neo-crumb-hover-line-offset, var(--neo-crumb-line-offset, .25em));
+}
+.neo-crumb a:focus-visible {
+  outline: 2px solid var(--neo-crumb-focus, var(--neo-focus, var(--accent-bright, #e08fdf)));
+  outline-offset: var(--neo-crumb-focus-offset, 3px);
+  border-radius: var(--neo-crumb-focus-radius, 4px);
+}
+.neo-crumb [aria-current] {
+  color: var(--neo-crumb-current-ink, var(--text-primary, #f9f9f9));
+  font-weight: var(--neo-crumb-current-weight, 600);
+}
+.neo-crumb__sep { color: var(--neo-crumb-sep-ink, var(--text-secondary, #cacaca)); }
+@media (pointer: coarse) {
+  .neo-crumb a { min-height: max(44px, var(--neo-crumb-target, 44px)); }
+}
+
+/* ── Section head ─────────────────────────────────────────────
+ * A title and, under it, the section's finding; actions to the right, under
+ * the title on a phone by wrapping. */
+.neo-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: var(--neo-section-head-align, flex-end);
+  justify-content: space-between;
+  gap: var(--neo-section-head-gap, var(--space-3, 12px) var(--space-4, 16px));
+}
+.neo-section-head__titles {
+  display: flex;
+  flex-direction: column;
+  gap: var(--neo-section-head-titles-gap, var(--space-1, 4px));
+  min-width: 0;
+  flex: var(--neo-section-head-titles-flex, 1 1 320px);
+}
+.neo-section-head__title {
+  margin: var(--neo-section-head-title-margin, 0);
+  font-size: max(12px, var(--neo-section-head-title-size, var(--text-xl, 1.25rem)));
+  font-weight: var(--neo-section-head-title-weight, 600);
+  letter-spacing: var(--neo-section-head-title-tracking, .02em);
+  line-height: var(--neo-section-head-title-leading, inherit);
+  color: var(--neo-section-head-title-ink, var(--text-primary, #f9f9f9));
+}
+.neo-section-head__finding {
+  margin: var(--neo-section-head-line-margin, 0);
+  font-size: max(12px, var(--neo-section-head-line-size, var(--text-sm, .875rem)));
+  color: var(--neo-section-head-line-ink, var(--text-secondary, #cacaca));
+  line-height: var(--neo-section-head-line-leading, 1.55);
+  max-width: var(--neo-section-head-line-max, 68ch);
+  font-variant-numeric: var(--neo-section-head-line-figures, tabular-nums);
+}
+.neo-section-head__finding:empty { display: none; }
+.neo-section-head__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--neo-section-head-actions-gap, var(--space-2, 8px));
+}
+
+/* ── Data table ───────────────────────────────────────────────
+ * A labelled, focusable region that scrolls sideways, holding the table. */
+.neo-table-wrap {
+  overflow-x: auto;
+  border-width: var(--neo-table-wrap-border-w, 1px);
+  border-style: var(--neo-table-wrap-border-style, solid);
+  border-color: var(--neo-table-wrap-border, var(--border, rgb(255 255 255 / 10%)));
+  border-radius: var(--neo-table-wrap-radius, var(--radius, 10px));
+  background: var(--neo-table-wrap-bg, var(--surface-1, rgb(255 255 255 / 3%)));
+}
+.neo-table-wrap:focus-visible {
+  outline: 2px solid var(--neo-table-focus, var(--neo-focus, var(--accent-bright, #e08fdf)));
+  outline-offset: var(--neo-table-focus-offset, 2px);
+}
+.neo-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: max(12px, var(--neo-table-size, var(--text-sm, .875rem)));
+  font-variant-numeric: var(--neo-table-figures, inherit);
+}
+.neo-table caption {
+  caption-side: top;
+  padding: var(--neo-table-caption-pad, var(--space-2, 8px) var(--space-3, 12px));
+  text-align: left;
+  font-size: max(12px, var(--neo-table-caption-size, 13px));
+  color: var(--neo-table-caption-ink, var(--text-muted, rgb(255 255 255 / 55%)));
+  border-bottom: 1px solid var(--neo-table-rule, var(--border-subtle, rgb(255 255 255 / 7%)));
+}
+.neo-table th,
+.neo-table td {
+  padding: var(--neo-table-pad, var(--space-2, 8px) var(--space-3, 12px));
+  text-align: var(--neo-table-align, left);
+  white-space: var(--neo-table-space, nowrap);
+  border-bottom: var(--neo-table-rule-w, 1px) solid var(--neo-table-rule, var(--border-subtle, rgb(255 255 255 / 7%)));
+  vertical-align: var(--neo-table-valign, top);
+  color: var(--neo-table-cell-ink, inherit);
+}
+.neo-table thead th {
+  padding: var(--neo-table-head-pad, var(--neo-table-pad, var(--space-2, 8px) var(--space-3, 12px)));
+  font-size: max(12px, var(--neo-table-head-size, 13px));
+  font-weight: var(--neo-table-head-weight, 600);
+  color: var(--neo-table-head-ink, var(--text-muted, rgb(255 255 255 / 55%)));
+  text-align: var(--neo-table-head-align, var(--neo-table-align, left));
+  white-space: var(--neo-table-head-space, var(--neo-table-space, nowrap));
+  vertical-align: var(--neo-table-head-valign, bottom);
+  border-bottom-color: var(--neo-table-head-rule, var(--neo-table-rule, var(--border-subtle, rgb(255 255 255 / 7%))));
+}
+/* Row heads name their row; they are not column heads, so not bold. */
+.neo-table tbody th {
+  font-weight: var(--neo-table-row-head-weight, 500);
+  color: var(--neo-table-row-head-ink, var(--text-primary, #f9f9f9));
+}
+.neo-table tbody tr:last-child > * { border-bottom: var(--neo-table-last-rule, 0); }
+.neo-table tbody tr:hover { background: var(--neo-table-hover-bg, var(--surface-1, rgb(255 255 255 / 3%))); }
+/* The picked row paints its cells, so a site's own row hover on the cells
+   still shows over it. */
+.neo-table tr[aria-current="true"] > * { background: var(--neo-table-picked-bg, color-mix(in srgb, var(--accent-bright, #e08fdf) 8%, transparent)); }
+.neo-table .neo-table__num {
+  text-align: right;
+  font-family: var(--neo-table-num-font, var(--mono, ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace));
+  font-variant-numeric: tabular-nums;
+}
+.neo-table thead .neo-table__num { font-family: var(--neo-table-head-num-font, var(--font, inherit)); }
+.neo-table .neo-table__group > th {
+  padding-top: var(--neo-table-group-gap, var(--space-4, 16px));
+  font-size: max(12px, var(--neo-table-group-size, 13px));
+  font-weight: 600;
+  color: var(--neo-table-group-ink, var(--text-muted, rgb(255 255 255 / 55%)));
+  white-space: normal;
+}
+/* Contract only in v1: styled when a consumer draws them. */
+.neo-table__sort { margin-inline-start: auto; }
+.neo-table__none { color: var(--neo-table-none-ink, var(--text-secondary, #cacaca)); }
+@media (max-width: 600px) {
+  .neo-table th,
+  .neo-table td { padding: var(--neo-table-pad-phone, 6px var(--space-2, 8px)); }
+  .neo-table thead th { padding: var(--neo-table-head-pad-phone, var(--neo-table-pad-phone, 6px var(--space-2, 8px))); }
+}
+
+/* ── Motion ───────────────────────────────────────────────────
+ * Transitions are opt-in (0s by default) and stop under reduced motion. A
+ * site whose own reduced-motion rule says transition: none also sets
+ * --neo-chip-transition: none there. */
+@media (prefers-reduced-motion: reduce) {
+  .neo-chip,
+  .neo-chip__x { transition-duration: 0s; }
+}
