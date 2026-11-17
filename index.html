@@ -53,6 +53,7 @@
        Opt out per page with <meta name="beacon" content="off">.
        See packages/neorgon-ui/beacon/README.md. -->
   <meta name="beacon-site" content="headroom-site">
+  <meta name="neo-category" content="ai">
   <link rel="stylesheet" href="css/neorgon-beacon.css">
   <script defer src="js/neorgon-beacon.js"></script>
   <script type="application/ld+json">
@@ -310,6 +311,19 @@
 
   <footer class="neo-footer" data-footer-mode="app">
     Runs entirely in your browser. Estimates from published specs, not measurements of your box.
+    <!-- neo-fleet:more -->
+    <nav class="neo-more" aria-label="More in AI" data-category="ai" data-label-en="AI" data-label-es="IA">
+      <span class="neo-more__label" aria-hidden="true"><svg class="neo-more__icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><path d="M9.5 2.5V6M14.5 2.5V6M9.5 18v3.5M14.5 18v3.5M2.5 9.5H6M2.5 14.5H6M18 9.5h3.5M18 14.5h3.5"/></svg><span class="neo-more__title">More in AI</span></span>
+      <ul class="neo-more__list">
+        <li><a href="https://releve.neorgon.com/">Releve</a></li>
+        <li><a href="https://primer.neorgon.com/">Primer</a></li>
+        <li><a href="https://glassbox.neorgon.com/">Glass Box</a></li>
+        <li><a href="https://agentlore.neorgon.com/">Agent Lore</a></li>
+        <li><a href="https://dossier.neorgon.com/">Dossier</a></li>
+        <li><a class="neo-more__all" href="https://neorgon.com/ai/">All AI tools</a></li>
+      </ul>
+    </nav>
+    <!-- /neo-fleet:more -->
   </footer>
 
   <script type="module" src="js/app.js"></script>
